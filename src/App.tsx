@@ -313,6 +313,7 @@ export default function App() {
           isOpen={isRestTimerOpen}
           onClose={() => setIsRestTimerOpen(false)}
           soundEnabled={soundEnabled}
+          onToggleSound={() => setSoundEnabled((prev) => !prev)}
         />
 
         {/* Bottom Navigation */}

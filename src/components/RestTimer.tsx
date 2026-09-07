@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Timer, Play, Pause, RotateCcw, Plus, Minus, X, Bell } from 'lucide-react';
+import { Timer, Play, Pause, RotateCcw, Plus, Minus, X, Bell, Volume2, VolumeX, Volume1 } from 'lucide-react';
 import { formatTimeSeconds } from '../utils/calculations';
-import { playRestCompleteSound, playBeep } from '../utils/audio';
+import { playRestCompleteSound, playBeep, unlockAudio } from '../utils/audio';
 
 interface RestTimerProps {
   initialSeconds?: number;
   isOpen: boolean;
   onClose: () => void;
   soundEnabled: boolean;
+  onToggleSound?: () => void;
 }
 
 export const RestTimer: React.FC<RestTimerProps> = ({
@@ -15,6 +16,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   isOpen,
   onClose,
   soundEnabled,
+  onToggleSound,
 }) => {
   const [totalSeconds, setTotalSeconds] = useState(initialSeconds);
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
@@ -36,7 +38,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       interval = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 4 && prev > 1 && soundEnabled) {
-            playBeep(440, 0.08); // short pre-alert beep
+            playBeep(700, 0.08, 'triangle', 0.25); // warning pip at 3, 2, 1
           }
           if (prev <= 1) {
             setIsActive(false);
@@ -46,7 +48,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
             }
             if ('vibrate' in navigator) {
               try {
-                navigator.vibrate([200, 100, 200]);
+                navigator.vibrate([300, 150, 300, 150, 450]);
               } catch {
                 // Ignore
               }
@@ -64,6 +66,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   }, [isActive, secondsLeft, soundEnabled]);
 
   const toggleTimer = () => {
+    unlockAudio();
     if (secondsLeft === 0) {
       setSecondsLeft(totalSeconds);
       setIsCompleted(false);
@@ -74,22 +77,37 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   };
 
   const resetTimer = () => {
+    unlockAudio();
     setIsActive(false);
     setIsCompleted(false);
     setSecondsLeft(totalSeconds);
   };
 
   const addTime = (secs: number) => {
+    unlockAudio();
     const next = Math.max(0, secondsLeft + secs);
     setSecondsLeft(next);
     if (next > totalSeconds) setTotalSeconds(next);
   };
 
   const setPreset = (secs: number) => {
+    unlockAudio();
     setTotalSeconds(secs);
     setSecondsLeft(secs);
     setIsActive(true);
     setIsCompleted(false);
+  };
+
+  const handleTestSound = () => {
+    unlockAudio();
+    playRestCompleteSound();
+    if ('vibrate' in navigator) {
+      try {
+        navigator.vibrate([200, 100, 200]);
+      } catch {
+        // Ignore
+      }
+    }
   };
 
   if (!isOpen && !isActive && !isCompleted) return null;
@@ -101,10 +119,18 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       id="rest-timer-container"
       className="fixed bottom-16 left-0 right-0 z-30 max-w-lg mx-auto px-4 pb-2 transition-all animate-in fade-in slide-in-from-bottom-4 duration-300"
     >
-      <div className="bg-slate-900 text-white rounded-2xl shadow-xl border border-slate-700/60 p-3.5 backdrop-blur-md">
+      <div
+        className={`bg-slate-900 text-white rounded-2xl shadow-xl border p-3.5 backdrop-blur-md transition-colors ${
+          isCompleted ? 'border-emerald-500/80 ring-2 ring-emerald-500/30' : 'border-slate-700/60'
+        }`}
+      >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-[#0e7490] text-white">
+            <span
+              className={`p-1.5 rounded-lg transition-colors ${
+                isCompleted ? 'bg-emerald-600 animate-pulse text-white' : 'bg-[#0e7490] text-white'
+              }`}
+            >
               <Timer className="w-4 h-4" />
             </span>
             <div>
@@ -119,10 +145,41 @@ export const RestTimer: React.FC<RestTimerProps> = ({
 
           <div className="flex items-center gap-1.5">
             {isCompleted && (
-              <span className="flex items-center gap-1 text-[11px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-500/30">
+              <span className="flex items-center gap-1 text-[11px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30 animate-bounce">
                 <Bell className="w-3 h-3" /> ¡A entrenar!
               </span>
             )}
+
+            {/* Test sound button */}
+            <button
+              type="button"
+              onClick={handleTestSound}
+              className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-2 py-1 rounded-md flex items-center gap-1 transition-colors border border-slate-700/50"
+              title="Probar sonido y vibración"
+            >
+              <Volume1 className="w-3 h-3 text-cyan-400" />
+              <span>Probar</span>
+            </button>
+
+            {/* Sound toggle button */}
+            {onToggleSound && (
+              <button
+                type="button"
+                onClick={() => {
+                  unlockAudio();
+                  onToggleSound();
+                }}
+                className={`p-1 rounded-md transition-colors ${
+                  soundEnabled
+                    ? 'text-cyan-400 hover:bg-slate-800'
+                    : 'text-slate-500 hover:bg-slate-800'
+                }`}
+                title={soundEnabled ? 'Sonido activado (toca para silenciar)' : 'Sonido silenciado (toca para activar)'}
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+            )}
+
             <button
               id="close-rest-timer-btn"
               onClick={onClose}
@@ -147,7 +204,11 @@ export const RestTimer: React.FC<RestTimerProps> = ({
         {/* Main display & Controls */}
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-mono font-bold tracking-tight text-white">
+            <span
+              className={`text-3xl font-mono font-bold tracking-tight transition-colors ${
+                isCompleted ? 'text-emerald-400' : 'text-white'
+              }`}
+            >
               {formatTimeSeconds(secondsLeft)}
             </span>
             <span className="text-xs text-slate-400 font-mono">min:seg</span>
