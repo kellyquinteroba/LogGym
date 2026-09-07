@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { WorkoutSet, Exercise } from '../types';
 import { Dumbbell, Plus, Search, Trash2, Calendar, Timer, Copy, Download, FileSpreadsheet, Smartphone, Upload } from 'lucide-react';
-import { formatDisplayDate } from '../utils/calculations';
+import { formatDisplayDate, sortSetsChronological } from '../utils/calculations';
 import { exportWorkoutSetsToExcel } from '../utils/excel';
 
 interface WorkoutsTabProps {
@@ -51,7 +51,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
   // Group by Date and Routine
   const groupedSessions = useMemo(() => {
     const groups: { [key: string]: WorkoutSet[] } = {};
-    const sorted = [...filteredSets].sort((a, b) => b.timestamp - a.timestamp);
+    const sorted = sortSetsChronological(filteredSets, 'desc');
 
     sorted.forEach((s) => {
       const key = `${s.date}___${s.routine || 'General'}`;
@@ -59,22 +59,31 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
       groups[key].push(s);
     });
 
-    return Object.entries(groups).map(([key, sessionSets]) => {
-      const [date, routine] = key.split('___');
-      const totalSessionVolume = sessionSets.reduce((sum, s) => sum + s.weightKg * s.reps, 0);
-      return {
-        date,
-        routine,
-        sets: sessionSets,
-        totalVolume: totalSessionVolume,
-      };
-    });
+    return Object.entries(groups)
+      .sort(([keyA], [keyB]) => {
+        const dateA = keyA.split('___')[0];
+        const dateB = keyB.split('___')[0];
+        return dateB.localeCompare(dateA); // newest session first
+      })
+      .map(([key, sessionSets]) => {
+        const [date, routine] = key.split('___');
+        // Sort sets within session by setNumber ascending
+        const orderedSets = [...sessionSets].sort((a, b) => a.setNumber - b.setNumber);
+        const totalSessionVolume = orderedSets.reduce((sum, s) => sum + s.weightKg * s.reps, 0);
+        return {
+          date,
+          routine,
+          sets: orderedSets,
+          totalVolume: totalSessionVolume,
+        };
+      });
   }, [filteredSets]);
 
   const handleExportCSV = () => {
     if (sets.length === 0) return;
+    const sortedSets = sortSetsChronological(sets, 'desc');
     const headers = ['Fecha', 'Rutina', 'Ejercicio', 'Serie', 'Peso (kg)', 'Reps', 'RPE', 'Descanso (s)', 'Volumen (kg)', 'Notas'];
-    const rows = sets.map((s) => [
+    const rows = sortedSets.map((s) => [
       s.date,
       `"${s.routine}"`,
       `"${s.exerciseName}"`,

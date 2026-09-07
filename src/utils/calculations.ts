@@ -52,6 +52,21 @@ export function formatDisplayDate(dateStr: string): string {
   return dateStr;
 }
 
+export function sortSetsChronological(
+  setsList: WorkoutSet[],
+  direction: 'asc' | 'desc' = 'desc'
+): WorkoutSet[] {
+  return [...setsList].sort((a, b) => {
+    if (a.date !== b.date) {
+      return direction === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+    }
+    if (a.setNumber !== b.setNumber) {
+      return a.setNumber - b.setNumber;
+    }
+    return direction === 'desc' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp;
+  });
+}
+
 export function generateSampleSets(): WorkoutSet[] {
   const baseTimestamp = Date.now() - 14 * 86400000;
   const day = 86400000;

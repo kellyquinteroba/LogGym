@@ -49,7 +49,7 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
     return sets.filter((s) => s.exerciseId === selectedExerciseFilter);
   }, [sets, selectedExerciseFilter]);
 
-  // Aggregate data by date
+  // Aggregate data by date in strict ascending chronological order (past to present)
   const chartData = useMemo(() => {
     if (targetSets.length === 0) return [];
 
@@ -57,6 +57,7 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
       [date: string]: {
         date: string;
         displayDate: string;
+        fullDate: string;
         volumen: number;
         maxCarga: number;
         series: number;
@@ -66,14 +67,15 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
       };
     } = {};
 
-    const sortedSets = [...targetSets].sort((a, b) => a.timestamp - b.timestamp);
-
-    sortedSets.forEach((s) => {
+    targetSets.forEach((s) => {
       const d = s.date;
+      if (!d) return;
+
       if (!grouped[d]) {
         grouped[d] = {
           date: d,
-          displayDate: formatDisplayDate(d).slice(0, 5), // DD/MM
+          displayDate: '',
+          fullDate: formatDisplayDate(d),
           volumen: 0,
           maxCarga: 0,
           series: 0,
@@ -85,7 +87,7 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
       const vol = s.weightKg * s.reps;
       grouped[d].volumen += vol;
       grouped[d].series += 1;
-      grouped[d].restTotal += s.restSeconds;
+      grouped[d].restTotal += s.restSeconds || 0;
       if (s.weightKg > grouped[d].maxCarga) {
         grouped[d].maxCarga = s.weightKg;
       }
@@ -95,10 +97,29 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
       }
     });
 
-    return Object.values(grouped).map((item) => ({
-      ...item,
-      avgRest: item.series > 0 ? Math.round(item.restTotal / item.series) : 0,
-    }));
+    // Sort strictly chronologically by ISO date string (e.g. 2026-05-15 before 2026-09-07)
+    const sortedDates = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+    // Check if dates span across different years to adapt the X-axis label
+    const years = new Set(sortedDates.map((d) => d.slice(0, 4)));
+    const spansMultipleYears = years.size > 1;
+
+    return sortedDates.map((d) => {
+      const item = grouped[d];
+      const parts = d.split('-');
+      const displayDate = spansMultipleYears && parts.length === 3
+        ? `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`
+        : parts.length === 3
+        ? `${parts[2]}/${parts[1]}`
+        : d;
+
+      return {
+        ...item,
+        displayDate,
+        volumen: Math.round(item.volumen * 10) / 10,
+        avgRest: item.series > 0 ? Math.round(item.restTotal / item.series) : 0,
+      };
+    });
   }, [targetSets]);
 
   // Best records per exercise
@@ -275,7 +296,10 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
                     <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(val: number) => [`${val.toLocaleString()} kg`, 'Volumen']}
-                      labelFormatter={(label) => `Fecha: ${label}`}
+                      labelFormatter={(label, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return `Fecha: ${item?.fullDate || label}`;
+                      }}
                       contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
                     <Area type="monotone" dataKey="volumen" stroke="#0e7490" strokeWidth={2.5} fillOpacity={1} fill="url(#colorVol)" />
@@ -290,7 +314,10 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
                         `${val} kg`,
                         name === 'e1RM' ? '1RM Estimado' : 'Carga Real',
                       ]}
-                      labelFormatter={(label) => `Fecha: ${label}`}
+                      labelFormatter={(label, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return `Fecha: ${item?.fullDate || label}`;
+                      }}
                       contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
                     <Line type="monotone" dataKey="maxCarga" name="Carga máxima" stroke="#0e7490" strokeWidth={2.5} dot={{ r: 4, fill: '#0e7490' }} />
@@ -303,7 +330,10 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
                     <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(val: number) => [`${val} series`, 'Series totales']}
-                      labelFormatter={(label) => `Fecha: ${label}`}
+                      labelFormatter={(label, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return `Fecha: ${item?.fullDate || label}`;
+                      }}
                       contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
                     <Bar dataKey="series" fill="#0e7490" radius={[6, 6, 0, 0]} />
@@ -315,7 +345,10 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
                     <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip
                       formatter={(val: number) => [`${val} seg`, 'Descanso medio']}
-                      labelFormatter={(label) => `Fecha: ${label}`}
+                      labelFormatter={(label, payload) => {
+                        const item = payload?.[0]?.payload;
+                        return `Fecha: ${item?.fullDate || label}`;
+                      }}
                       contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
                     />
                     <Line type="monotone" dataKey="avgRest" name="Descanso medio (s)" stroke="#d97706" strokeWidth={2.5} dot={{ r: 4, fill: '#d97706' }} />

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { FileSpreadsheet, Download, Upload, Check, AlertCircle, X, Database, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Download, Upload, Check, AlertCircle, X, Database, RefreshCw, FileText, Info, HelpCircle, Table, FileDown } from 'lucide-react';
 import { WorkoutSet, Exercise } from '../types';
-import { exportWorkoutSetsToExcel, importWorkoutSetsFromExcel } from '../utils/excel';
+import { exportWorkoutSetsToExcel, importWorkoutSetsFromExcel, downloadExcelTemplate } from '../utils/excel';
 
 interface ExcelModalProps {
   isOpen: boolean;
@@ -28,6 +28,7 @@ export const ExcelModal: React.FC<ExcelModalProps> = ({
   const [importPreview, setImportPreview] = useState<{ sets: WorkoutSet[]; count: number; filename: string } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
+  const [showColumnsGuide, setShowColumnsGuide] = useState(false);
 
   if (!isOpen) return null;
 
@@ -190,13 +191,134 @@ export const ExcelModal: React.FC<ExcelModalProps> = ({
             </div>
           ) : (
             <div className="space-y-3.5">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5">
-                <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                  <Upload className="w-4 h-4 text-emerald-700" />
-                  Importar o Restaurar Copia
+              {/* Info banner with columns breakdown */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                    <Upload className="w-4 h-4 text-emerald-700" />
+                    Importar o Restaurar Copia
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        const filename = downloadExcelTemplate();
+                        setImportSuccessMessage(`Plantilla descargada: ${filename}`);
+                        setTimeout(() => setImportSuccessMessage(null), 3500);
+                      } catch (err: unknown) {
+                        alert((err as Error).message || 'Error al descargar plantilla');
+                      }
+                    }}
+                    className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-100/70 hover:bg-emerald-200/70 px-2 py-1 rounded-lg flex items-center gap-1 transition-colors border border-emerald-300/60"
+                    title="Descargar un archivo Excel listo con las columnas correctas"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-emerald-700" />
+                    Descargar Plantilla
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Puedes restaurar un archivo descargado previamente desde esta app, o crear tu propio archivo en Excel o Google Sheets con las siguientes columnas:
                 </p>
-                <p className="text-[11px] text-slate-600">
-                  Sube un archivo <strong>.xlsx</strong> o <strong>.csv</strong> exportado previamente para restaurar tus entrenamientos o cargarlos desde tu ordenador.
+
+                {/* Columns Explanation Card */}
+                <div className="bg-white border border-slate-200/90 rounded-lg p-3 space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <span className="font-bold text-slate-800 flex items-center gap-1">
+                      <Table className="w-3.5 h-3.5 text-[#0e7490]" />
+                      Columnas requeridas en la hoja:
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                      Fila 1 = Encabezados
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px] text-emerald-800">
+                        • Ejercicio:
+                      </span>
+                      <span className="text-slate-600">
+                        <strong className="text-rose-600 font-bold">(Obligatoria)</strong> Nombre del ejercicio (ej. <em>Press de banca plano</em>, <em>Sentadilla trasera</em>).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Fecha:
+                      </span>
+                      <span className="text-slate-600">
+                        Formato <code>AAAA-MM-DD</code> (ej. <code>2026-09-07</code>) o <code>DD/MM/AAAA</code>. Si se omite, se asigna la fecha de hoy.
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Peso (kg):
+                      </span>
+                      <span className="text-slate-600">
+                        Carga numérica levantada en kg (ej. <code>80</code> o <code>102.5</code>). También se acepta la cabecera <em>Peso</em>.
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Repeticiones:
+                      </span>
+                      <span className="text-slate-600">
+                        Número de repeticiones de la serie (ej. <code>8</code>, <code>10</code>). También se acepta <em>Reps</em>.
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Serie Nº:
+                      </span>
+                      <span className="text-slate-600">
+                        Número de serie en el entreno (1, 2, 3...). Opcional (por defecto 1).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • RPE (Esfuerzo):
+                      </span>
+                      <span className="text-slate-600">
+                        Esfuerzo percibido del 1 al 10 (ej. <code>8</code> o <code>8.5</code>). Opcional (por defecto 8).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Descanso (seg):
+                      </span>
+                      <span className="text-slate-600">
+                        Segundos de descanso tras la serie (ej. <code>90</code>, <code>120</code>). Opcional (por defecto 90).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Rutina:
+                      </span>
+                      <span className="text-slate-600">
+                        Nombre de la rutina o día (ej. <em>Torso / Empuje</em>, <em>Pierna</em>). Opcional (por defecto &quot;General&quot;).
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-1.5">
+                      <span className="font-bold text-slate-900 min-w-[82px]">
+                        • Notas:
+                      </span>
+                      <span className="text-slate-600">
+                        Anotaciones adicionales sobre la serie o sensaciones. Opcional.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500 bg-emerald-50/50 border border-emerald-200/50 rounded-lg p-2 leading-relaxed">
+                  💡 <strong>Consejo:</strong> Cualquier archivo exportado desde FuerzaLog con el botón <em>&quot;Descargar Excel (.xlsx)&quot;</em> ya viene con este formato exacto en su primera hoja y se puede importar directamente sin modificar nada.
                 </p>
               </div>
 

@@ -174,6 +174,100 @@ export function exportWorkoutSetsToExcel(sets: WorkoutSet[], exercises: Exercise
 }
 
 /**
+ * Flexible date parser supporting Excel serial numbers, YYYY-MM-DD, DD/MM/YYYY, etc.
+ */
+function parseFlexibleDate(val: unknown): string {
+  if (!val) return new Date().toISOString().split('T')[0];
+  if (typeof val === 'number') {
+    // Excel serial date (days since 1899-12-30)
+    const excelEpoch = new Date(Math.round((val - 25569) * 86400 * 1000));
+    if (!isNaN(excelEpoch.getTime())) {
+      return excelEpoch.toISOString().split('T')[0];
+    }
+  }
+  const str = String(val).trim();
+  // Format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  // Format DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+  // Fallback native Date
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split('T')[0];
+  }
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Downloads a ready-to-use Excel template with sample rows and the exact expected columns.
+ */
+export function downloadExcelTemplate(): string {
+  const templateData = [
+    {
+      'Fecha': '2026-09-07',
+      'Rutina': 'Torso / Empuje',
+      'Ejercicio': 'Press de banca plano',
+      'Serie Nº': 1,
+      'Peso (kg)': 80,
+      'Repeticiones': 8,
+      'RPE (Esfuerzo)': 8.5,
+      'Descanso (seg)': 120,
+      'Notas': 'Buena velocidad concéntrica',
+    },
+    {
+      'Fecha': '2026-09-07',
+      'Rutina': 'Torso / Empuje',
+      'Ejercicio': 'Press de banca plano',
+      'Serie Nº': 2,
+      'Peso (kg)': 80,
+      'Repeticiones': 8,
+      'RPE (Esfuerzo)': 9,
+      'Descanso (seg)': 120,
+      'Notas': '',
+    },
+    {
+      'Fecha': '2026-09-07',
+      'Rutina': 'Torso / Empuje',
+      'Ejercicio': 'Press militar con barra',
+      'Serie Nº': 1,
+      'Peso (kg)': 50,
+      'Repeticiones': 10,
+      'RPE (Esfuerzo)': 8,
+      'Descanso (seg)': 90,
+      'Notas': 'Rango completo',
+    },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(templateData);
+
+  ws['!cols'] = [
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 25 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 30 },
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, ws, 'Historial de Series');
+  const filename = 'Plantilla_FuerzaLog_Entrenamientos.xlsx';
+  XLSX.writeFile(workbook, filename);
+  return filename;
+}
+
+/**
  * Import workout sets from an Excel or CSV file.
  */
 export async function importWorkoutSetsFromExcel(
@@ -220,27 +314,7 @@ export async function importWorkoutSetsFromExcel(
 
     if (!rawExercise) return;
 
-    let dateStr = new Date().toISOString().split('T')[0];
-    if (rawDate) {
-      if (typeof rawDate === 'number') {
-        // Excel serial date number
-        const excelEpoch = new Date((rawDate - 25569) * 86400 * 1000);
-        if (!isNaN(excelEpoch.getTime())) {
-          dateStr = excelEpoch.toISOString().split('T')[0];
-        }
-      } else {
-        const parsed = String(rawDate).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
-          dateStr = parsed;
-        } else {
-          const tryDate = new Date(parsed);
-          if (!isNaN(tryDate.getTime())) {
-            dateStr = tryDate.toISOString().split('T')[0];
-          }
-        }
-      }
-    }
-
+    const dateStr = parseFlexibleDate(rawDate);
     const exName = String(rawExercise).trim();
     const exId = exerciseMap.get(exName.toLowerCase()) || `ex-custom-${idx}`;
     const weightKg = parseFloat(String(rawWeight)) || 0;
@@ -248,6 +322,12 @@ export async function importWorkoutSetsFromExcel(
     const setNum = parseInt(String(rawSetNumber), 10) || 1;
     const rpe = parseFloat(String(rawRpe)) || 8;
     const restSeconds = parseInt(String(rawRest), 10) || 90;
+
+    // Anchor timestamp to the actual workout date so chronological sorting is preserved
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObj = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+    const baseTime = !isNaN(dateObj.getTime()) ? dateObj.getTime() : Date.now();
+    const computedTimestamp = baseTime + setNum * 60000 + idx;
 
     parsedSets.push({
       id: `set-import-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -261,12 +341,12 @@ export async function importWorkoutSetsFromExcel(
       rpe,
       restSeconds,
       notes: rawNotes ? String(rawNotes).trim() : undefined,
-      timestamp: new Date(dateStr).getTime() + idx * 1000,
+      timestamp: computedTimestamp,
     });
   });
 
   if (parsedSets.length === 0) {
-    throw new Error('No se pudieron reconocer columnas válidas de ejercicios o series en el archivo.');
+    throw new Error('No se pudieron reconocer columnas válidas de ejercicios o series en el archivo. Revisa que contenga la columna "Ejercicio".');
   }
 
   return {

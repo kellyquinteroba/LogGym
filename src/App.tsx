@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TabType, WorkoutSet, Exercise } from './types';
 import { INITIAL_EXERCISES } from './data/initialExercises';
-import { generateSampleSets } from './utils/calculations';
+import { generateSampleSets, sortSetsChronological } from './utils/calculations';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
 import { WorkoutsTab } from './components/WorkoutsTab';
@@ -44,7 +44,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_SETS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return sortSetsChronological(parsed, 'desc');
       }
     } catch {
       // fallback
@@ -85,13 +85,19 @@ export default function App() {
     newSetData: Omit<WorkoutSet, 'id' | 'timestamp'>,
     autoStartRest = true
   ) => {
+    // Generate an accurate timestamp anchored to the chosen date
+    const [y, m, d] = newSetData.date.split('-').map(Number);
+    const dateObj = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+    const baseTime = !isNaN(dateObj.getTime()) ? dateObj.getTime() : Date.now();
+    const calculatedTimestamp = baseTime + (newSetData.setNumber || 1) * 60000;
+
     const newSet: WorkoutSet = {
       ...newSetData,
       id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: Date.now(),
+      timestamp: calculatedTimestamp,
     };
 
-    setSets((prev) => [newSet, ...prev]);
+    setSets((prev) => sortSetsChronological([newSet, ...prev], 'desc'));
 
     if (autoStartRest && newSetData.restSeconds > 0) {
       setRestTimerSeconds(newSetData.restSeconds);
@@ -116,10 +122,10 @@ export default function App() {
       ...original,
       id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       setNumber: nextSetNumber,
-      timestamp: Date.now(),
+      timestamp: original.timestamp + 60000,
     };
 
-    setSets((prev) => [duplicated, ...prev]);
+    setSets((prev) => sortSetsChronological([duplicated, ...prev], 'desc'));
   };
 
   const handleAddCustomExercise = (newEx: Exercise) => {
@@ -141,7 +147,7 @@ export default function App() {
 
   const handleLoadSampleData = () => {
     const samples = generateSampleSets();
-    setSets(samples);
+    setSets(sortSetsChronological(samples, 'desc'));
   };
 
   const handleClearAllData = () => {
@@ -152,9 +158,9 @@ export default function App() {
 
   const handleImportSets = (newSets: WorkoutSet[], replace: boolean) => {
     if (replace) {
-      setSets(newSets);
+      setSets(sortSetsChronological(newSets, 'desc'));
     } else {
-      setSets((prev) => [...newSets, ...prev]);
+      setSets((prev) => sortSetsChronological([...newSets, ...prev], 'desc'));
     }
   };
 
