@@ -23,7 +23,7 @@ export default defineConfig(() => {
           display: 'standalone',
           orientation: 'portrait',
           start_url: '/LogGym/',
-          scope: '/LogGym/'
+          scope: '/LogGym/',
           icons: [
             {
               src: '/pwa-192x192.png',
