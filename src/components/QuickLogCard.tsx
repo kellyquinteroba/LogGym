@@ -103,38 +103,38 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
   return (
     <div id="quick-log-card" className="mt-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-bold text-slate-900 tracking-tight">Registro rápido</h2>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Registro rápido</h2>
         <button
           type="button"
           id="btn-ver-historial"
           onClick={onViewHistory}
-          className="text-xs font-semibold text-[#0e7490] hover:underline"
+          className="text-xs font-semibold text-[#0e7490] dark:text-cyan-400 hover:underline"
         >
           Ver historial
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
-        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 shadow-sm transition-colors">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
           El volumen se calcula automáticamente como peso por repeticiones.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Fecha */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Fecha</label>
             <input
               type="date"
               id="input-fecha"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all"
+              className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all"
             />
           </div>
 
           {/* Día / Rutina */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Día / Rutina</label>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Día / Rutina</label>
             <div className="relative">
               <input
                 type="text"
@@ -143,7 +143,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 value={routine}
                 onChange={(e) => setRoutine(e.target.value)}
                 placeholder="Ej. Torso A, Pierna, Empuje..."
-                className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all"
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
               <datalist id="rutinas-list">
                 <option value="Torso A" />
@@ -159,12 +159,12 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
           {/* Ejercicio */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-slate-700">Ejercicio</label>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Ejercicio</label>
               {onOpenNewExerciseModal && (
                 <button
                   type="button"
                   onClick={onOpenNewExerciseModal}
-                  className="text-[11px] text-[#0e7490] hover:underline flex items-center gap-0.5"
+                  className="text-[11px] text-[#0e7490] dark:text-cyan-400 hover:underline flex items-center gap-0.5"
                 >
                   <Plus className="w-3 h-3" /> Añadir nuevo
                 </button>
@@ -174,7 +174,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               id="select-ejercicio"
               value={exerciseId}
               onChange={(e) => setExerciseId(e.target.value)}
-              className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2.5 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all font-medium"
+              className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-medium"
             >
               <option value="" disabled>
                 Selecciona un ejercicio
@@ -186,7 +186,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               ))}
             </select>
             {selectedExercise && (
-              <p className="text-[11px] text-slate-500 mt-1 italic line-clamp-1">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 italic line-clamp-1">
                 💡 {selectedExercise.cues}
               </p>
             )}
@@ -196,7 +196,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
           <div className="grid grid-cols-2 gap-3 pt-1">
             {/* Serie */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Serie</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Serie</label>
               <input
                 type="number"
                 id="input-serie"
@@ -204,16 +204,16 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 max="30"
                 value={setNumber}
                 onChange={(e) => setSetNumber(parseInt(e.target.value, 10) || 1)}
-                className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all"
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all"
               />
             </div>
 
             {/* Peso (kg) */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">Peso (kg)</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Peso (kg)</label>
                 {calculatedVolume > 0 && (
-                  <span className="text-[10px] text-teal-700 font-medium">
+                  <span className="text-[10px] text-teal-700 dark:text-cyan-400 font-medium">
                     Vol: {calculatedVolume} kg
                   </span>
                 )}
@@ -226,13 +226,13 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 value={weightKg}
                 onChange={(e) => setWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
                 placeholder="0"
-                className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all font-semibold"
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-semibold placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
             </div>
 
             {/* Reps */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Reps</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Reps</label>
               <input
                 type="number"
                 id="input-reps"
@@ -240,15 +240,15 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 max="100"
                 value={reps}
                 onChange={(e) => setReps(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all font-semibold"
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-semibold"
               />
             </div>
 
             {/* RPE */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">RPE (1-10)</label>
-                <span className="text-[10px] text-slate-400">Esfuerzo</span>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">RPE (1-10)</label>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">Esfuerzo</span>
               </div>
               <input
                 type="number"
@@ -259,7 +259,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 value={rpe}
                 onChange={(e) => setRpe(e.target.value === '' ? '' : Number(e.target.value))}
                 placeholder="7"
-                className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all"
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
             </div>
           </div>
@@ -267,11 +267,11 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
           {/* Descanso entre series */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                <Timer className="w-3.5 h-3.5 text-[#0e7490]" />
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                <Timer className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400" />
                 Descanso posterior
               </label>
-              <span className="text-xs font-medium text-slate-600">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                 {restSeconds >= 60 ? `${Math.floor(restSeconds / 60)}m ${restSeconds % 60 ? `${restSeconds % 60}s` : ''}` : `${restSeconds}s`}
               </span>
             </div>
@@ -283,8 +283,8 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                   onClick={() => setRestSeconds(sec)}
                   className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all ${
                     restSeconds === sec
-                      ? 'bg-[#0e7490]/10 border-[#0e7490] text-[#0e7490] font-semibold'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      ? 'bg-[#0e7490]/10 dark:bg-cyan-950/60 border-[#0e7490] dark:border-cyan-500 text-[#0e7490] dark:text-cyan-400 font-semibold'
+                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   {sec < 60 ? `${sec}s` : `${sec / 60}m`}
@@ -292,12 +292,12 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               ))}
             </div>
 
-            <label className="flex items-center gap-2 mt-2 cursor-pointer text-xs text-slate-600 select-none">
+            <label className="flex items-center gap-2 mt-2 cursor-pointer text-xs text-slate-600 dark:text-slate-400 select-none">
               <input
                 type="checkbox"
                 checked={autoStartTimer}
                 onChange={(e) => setAutoStartTimer(e.target.checked)}
-                className="rounded border-slate-300 text-[#0e7490] focus:ring-[#0e7490]"
+                className="rounded border-slate-300 dark:border-slate-700 text-[#0e7490] dark:text-cyan-500 focus:ring-[#0e7490] dark:bg-slate-800"
               />
               <span>Iniciar temporizador de descanso automáticamente al guardar</span>
             </label>
@@ -305,7 +305,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
 
           {/* Notas / Sensaciones */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Notas / Sensaciones
             </label>
             <textarea
@@ -314,7 +314,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Pausa, técnica, energía o molestias..."
-              className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all resize-none"
+              className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all resize-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
 

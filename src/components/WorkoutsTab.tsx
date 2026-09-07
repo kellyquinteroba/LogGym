@@ -117,15 +117,15 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
     <div className="pb-24 animate-in fade-in duration-300">
       {/* Header (Matches Screenshot 3) */}
       <div className="flex items-center justify-between pt-1 pb-4">
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Entrenamientos</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Entrenamientos</h1>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onOpenExcelModal}
-            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-2 rounded-lg flex items-center gap-1 border border-emerald-200 transition-colors"
+            className="bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-semibold px-2.5 py-2 rounded-lg flex items-center gap-1 border border-emerald-200 dark:border-emerald-800/60 transition-colors"
             title="Exportar o importar Excel (.xlsx)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
             <span className="hidden sm:inline">Excel</span>
           </button>
           <button
@@ -141,7 +141,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
       </div>
 
       {/* Quick Excel and Mobile Card */}
-      <div className="bg-gradient-to-r from-emerald-900/90 to-teal-900/90 rounded-2xl p-3.5 text-white mb-5 shadow-xs flex items-center justify-between gap-2">
+      <div className="bg-gradient-to-r from-emerald-900/90 to-teal-900/90 rounded-2xl p-3.5 text-white mb-5 shadow-xs flex items-center justify-between gap-2 border border-emerald-800/40">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
             <FileSpreadsheet className="w-4 h-4" />
@@ -184,9 +184,9 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
             placeholder="Buscar ejercicio..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-100/90 text-slate-900 text-sm rounded-xl pl-9 pr-3 py-2.5 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all placeholder:text-slate-400"
+            className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm rounded-xl pl-9 pr-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" />
         </div>
 
         <div>
@@ -194,7 +194,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
             id="select-filtro-rutinas"
             value={selectedRoutine}
             onChange={(e) => setSelectedRoutine(e.target.value)}
-            className="w-full bg-slate-100/90 text-slate-800 text-sm rounded-xl px-3 py-2.5 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none transition-all font-medium"
+            className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-xl px-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-medium"
           >
             <option value="all">Todas las rutinas</option>
             {availableRoutines.map((r) => (
@@ -209,20 +209,20 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
       {/* Historial de series Section (Matches Screenshot 3) */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">Historial de series</h2>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Historial de series</h2>
           {sets.length > 0 && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDirectExportExcel}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+                className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 flex items-center gap-1"
                 title="Descargar archivo Excel (.xlsx)"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" /> Descargar Excel
               </button>
-              <span className="text-slate-300">|</span>
+              <span className="text-slate-300 dark:text-slate-700">|</span>
               <button
                 onClick={handleExportCSV}
-                className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
                 title="Descargar como archivo CSV clásico"
               >
                 <Download className="w-3.5 h-3.5" /> CSV
@@ -233,12 +233,12 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
 
         {groupedSessions.length === 0 ? (
           /* Empty state matching Image 3 */
-          <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center shadow-xs flex flex-col items-center justify-center">
-            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-8 text-center shadow-xs flex flex-col items-center justify-center transition-colors">
+            <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 mb-3">
               <Dumbbell className="w-7 h-7 -rotate-45" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mb-1">Sin registros de series</h3>
-            <p className="text-xs text-slate-500 max-w-xs mb-5">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Sin registros de series</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mb-5">
               Registra tu primera serie para empezar el historial.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
@@ -252,7 +252,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
               <button
                 type="button"
                 onClick={onLoadSampleData}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium px-3.5 py-2.5 rounded-xl transition-all"
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium px-3.5 py-2.5 rounded-xl transition-all"
               >
                 Cargar datos de prueba
               </button>
@@ -264,60 +264,60 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
             {groupedSessions.map((session, idx) => (
               <div
                 key={`${session.date}-${session.routine}-${idx}`}
-                className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-xs overflow-hidden transition-colors"
               >
                 {/* Session Header */}
-                <div className="bg-slate-50/90 border-b border-slate-100 px-4 py-2.5 flex items-center justify-between">
+                <div className="bg-slate-50/90 dark:bg-slate-800/70 border-b border-slate-100 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-3.5 h-3.5 text-[#0e7490]" />
-                    <span className="text-xs font-bold text-slate-800">
+                    <Calendar className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-white">
                       {formatDisplayDate(session.date)}
                     </span>
-                    <span className="text-[11px] font-semibold text-teal-800 bg-teal-100/70 px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] font-semibold text-teal-800 dark:text-cyan-300 bg-teal-100/70 dark:bg-cyan-950/70 px-2 py-0.5 rounded-full border border-transparent dark:border-cyan-800/50">
                       {session.routine}
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-500 font-medium">
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 font-medium">
                     Vol: {session.totalVolume.toLocaleString()} kg
                   </span>
                 </div>
 
                 {/* Series inside session */}
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
                   {session.sets.map((s) => (
-                    <div key={s.id} className="p-3.5 hover:bg-slate-50/50 transition-colors">
+                    <div key={s.id} className="p-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">
                               {s.exerciseName}
                             </span>
-                            <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-1.5 py-0.2 rounded">
+                            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold px-1.5 py-0.2 rounded">
                               Serie {s.setNumber}
                             </span>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs text-slate-700">
-                            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                          <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs text-slate-700 dark:text-slate-300">
+                            <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                               {s.weightKg} kg
                             </span>
-                            <span className="text-slate-400">×</span>
-                            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                            <span className="text-slate-400 dark:text-slate-600">×</span>
+                            <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                               {s.reps} reps
                             </span>
-                            <span className="text-[11px] text-slate-500">
-                              RPE <strong className="text-slate-800">{s.rpe}</strong>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              RPE <strong className="text-slate-800 dark:text-slate-200">{s.rpe}</strong>
                             </span>
-                            <span className="text-[11px] text-slate-500 flex items-center gap-0.5">
-                              <Timer className="w-3 h-3 text-[#0e7490]" /> {s.restSeconds}s
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-0.5">
+                              <Timer className="w-3 h-3 text-[#0e7490] dark:text-cyan-400" /> {s.restSeconds}s
                             </span>
-                            <span className="text-[11px] text-teal-700 font-medium ml-auto">
+                            <span className="text-[11px] text-teal-700 dark:text-cyan-400 font-medium ml-auto">
                               Vol: {(s.weightKg * s.reps).toLocaleString()} kg
                             </span>
                           </div>
 
                           {s.notes && (
-                            <p className="text-xs text-slate-500 italic mt-1.5 bg-slate-50 p-1.5 rounded-md border border-slate-100">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 italic mt-1.5 bg-slate-50 dark:bg-slate-800/60 p-1.5 rounded-md border border-slate-100 dark:border-slate-800">
                               💭 {s.notes}
                             </p>
                           )}
@@ -327,7 +327,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
                           <button
                             type="button"
                             onClick={() => onDuplicateSet(s)}
-                            className="text-slate-400 hover:text-[#0e7490] p-1.5 rounded-md hover:bg-teal-50 transition-colors"
+                            className="text-slate-400 hover:text-[#0e7490] dark:hover:text-cyan-400 p-1.5 rounded-md hover:bg-teal-50 dark:hover:bg-slate-800 transition-colors"
                             title="Repetir serie idéntica"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -335,7 +335,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
                           <button
                             type="button"
                             onClick={() => onDeleteSet(s.id)}
-                            className="text-slate-400 hover:text-rose-500 p-1.5 rounded-md hover:bg-rose-50 transition-colors"
+                            className="text-slate-400 hover:text-rose-500 p-1.5 rounded-md hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
                             title="Eliminar serie"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

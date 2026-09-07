@@ -51,12 +51,12 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-900">Nuevo ejercicio</h3>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 transition-colors">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">Nuevo ejercicio</h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-1 rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
@@ -64,7 +64,7 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3.5">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Nombre del ejercicio
             </label>
             <input
@@ -73,18 +73,18 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
               placeholder="Ej. Press Francés con Mancuernas"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-100 text-slate-900 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none"
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Grupo muscular
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as MuscleGroup)}
-              className="w-full bg-slate-100 text-slate-900 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none font-medium"
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none font-medium"
             >
               {MUSCLE_GROUPS.map((g) => (
                 <option key={g} value={g}>
@@ -95,7 +95,7 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Clave técnica / Cues (opcional)
             </label>
             <textarea
@@ -103,7 +103,7 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
               placeholder="Ej. Mantener codos cerrados y retracción de hombros..."
               value={cues}
               onChange={(e) => setCues(e.target.value)}
-              className="w-full bg-slate-100 text-slate-900 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white focus:ring-2 focus:ring-[#0e7490] focus:outline-none resize-none"
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none resize-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
 
@@ -111,7 +111,7 @@ export const NewExerciseModal: React.FC<NewExerciseModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg"
+              className="px-3.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg"
             >
               Cancelar
             </button>
