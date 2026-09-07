@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
+    base: '/LogGym/',
     plugins: [
       react(),
       tailwindcss(),
@@ -13,7 +14,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.png', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          id: '/',
+          id: '/LogGym/',
           name: 'Log de Fuerza',
           short_name: 'FuerzaLog',
           description: 'Registro de entrenamientos de fuerza con pesos, repeticiones, descansos y gráficos de progreso.',
@@ -21,8 +22,8 @@ export default defineConfig(() => {
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
+          start_url: '/LogGym/',
+          scope: '/LogGym/'
           icons: [
             {
               src: '/pwa-192x192.png',
