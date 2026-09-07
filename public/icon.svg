@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#0e7490" />
+    </linearGradient>
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2dd4bf" />
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Outer glowing ring accent -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#38bdf8" stroke-width="6" opacity="0.25" />
+
+  <!-- Dumbbell Icon -->
+  <g transform="translate(256, 256) rotate(-45) translate(-256, -256)">
+    <!-- Central Bar -->
+    <rect x="180" y="240" width="152" height="32" rx="16" fill="#f8fafc" />
+    <rect x="236" y="240" width="40" height="32" rx="4" fill="#94a3b8" />
+
+    <!-- Left Weight Plates -->
+    <rect x="140" y="196" width="32" height="120" rx="12" fill="url(#metalGrad)" />
+    <rect x="100" y="170" width="32" height="172" rx="14" fill="#ffffff" />
+    <rect x="68" y="200" width="24" height="112" rx="10" fill="url(#metalGrad)" />
+
+    <!-- Right Weight Plates -->
+    <rect x="340" y="196" width="32" height="120" rx="12" fill="url(#metalGrad)" />
+    <rect x="380" y="170" width="32" height="172" rx="14" fill="#ffffff" />
+    <rect x="420" y="200" width="24" height="112" rx="10" fill="url(#metalGrad)" />
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "name": "Log de Fuerza",
+  "description": "Registro de entrenamientos de fuerza con pesos, repeticiones, descansos y gráficos de progreso.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
