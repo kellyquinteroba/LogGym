@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TabType, WorkoutSet, Exercise } from './types';
 import { INITIAL_EXERCISES } from './data/initialExercises';
-import { generateSampleSets, sortSetsChronological } from './utils/calculations';
+import { generateSampleSets, sortSetsChronological, getTodayDateString } from './utils/calculations';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
 import { WorkoutsTab } from './components/WorkoutsTab';
@@ -110,11 +110,24 @@ export default function App() {
     newSetData: Omit<WorkoutSet, 'id' | 'timestamp'>,
     autoStartRest = true
   ) => {
-    // Generate an accurate timestamp anchored to the chosen date
-    const [y, m, d] = newSetData.date.split('-').map(Number);
-    const dateObj = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
-    const baseTime = !isNaN(dateObj.getTime()) ? dateObj.getTime() : Date.now();
-    const calculatedTimestamp = baseTime + (newSetData.setNumber || 1) * 60000;
+    // Check if the set is logged for today
+    const todayStr = getTodayDateString();
+    let calculatedTimestamp: number;
+
+    if (newSetData.date === todayStr) {
+      // Use current real time to record exact chronological sequence
+      calculatedTimestamp = Date.now();
+    } else {
+      // Past or custom date: anchor to that day and find highest timestamp for that date
+      const [y, m, d] = newSetData.date.split('-').map(Number);
+      const dateObj = new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+      const baseTime = !isNaN(dateObj.getTime()) ? dateObj.getTime() : Date.now();
+      const sameDateSets = sets.filter((s) => s.date === newSetData.date);
+      const maxExisting = sameDateSets.length > 0
+        ? Math.max(...sameDateSets.map((s) => s.timestamp || 0))
+        : baseTime;
+      calculatedTimestamp = Math.max(maxExisting + 60000, baseTime + (newSetData.setNumber || 1) * 60000);
+    }
 
     const newSet: WorkoutSet = {
       ...newSetData,
@@ -147,7 +160,7 @@ export default function App() {
       ...original,
       id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       setNumber: nextSetNumber,
-      timestamp: original.timestamp + 60000,
+      timestamp: Date.now() > (original.timestamp || 0) ? Date.now() : (original.timestamp || 0) + 60000,
     };
 
     setSets((prev) => sortSetsChronological([duplicated, ...prev], 'desc'));
@@ -326,6 +339,7 @@ export default function App() {
               onLoadSampleData={handleLoadSampleData}
               onOpenExcelModal={() => setIsExcelModalOpen(true)}
               onOpenInstallModal={() => setIsInstallAppModalOpen(true)}
+              onSelectExerciseForLog={handleSelectExerciseForLog}
             />
           )}
 
@@ -340,9 +354,12 @@ export default function App() {
           {activeTab === 'exercises' && (
             <ExercisesTab
               exercises={exercises}
+              sets={sets}
               onOpenNewExerciseModal={() => setIsNewExerciseModalOpen(true)}
               onSelectForLog={handleSelectExerciseForLog}
               onDeleteCustomExercise={handleDeleteCustomExercise}
+              onDuplicateSet={handleDuplicateSet}
+              onDeleteSet={handleDeleteSet}
             />
           )}
         </div>
