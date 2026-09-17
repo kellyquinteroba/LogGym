@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { WorkoutSet, Exercise } from '../types';
-import { Dumbbell, Plus, Search, Trash2, Calendar, Timer, Copy, Download, FileSpreadsheet, ChevronRight, Zap } from 'lucide-react';
+import { Dumbbell, Plus, Search, Trash2, Calendar, Timer, Copy, Download, FileSpreadsheet, ChevronRight, Zap, Pencil } from 'lucide-react';
 import { formatDisplayDate, formatFriendlyDate, sortSetsChronological, calculateEstimated1RM } from '../utils/calculations';
 import { exportWorkoutSetsToExcel } from '../utils/excel';
+import { EditSetModal } from './EditSetModal';
 
 interface WorkoutsTabProps {
   sets: WorkoutSet[];
@@ -10,6 +11,7 @@ interface WorkoutsTabProps {
   onOpenQuickLog: () => void;
   onDeleteSet: (id: string) => void;
   onDuplicateSet: (set: WorkoutSet) => void;
+  onUpdateSet?: (updatedSet: WorkoutSet) => void;
   onLoadSampleData: () => void;
   onOpenExcelModal: () => void;
   onOpenInstallModal: () => void;
@@ -22,6 +24,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
   onOpenQuickLog,
   onDeleteSet,
   onDuplicateSet,
+  onUpdateSet,
   onLoadSampleData,
   onOpenExcelModal,
   onOpenInstallModal,
@@ -29,6 +32,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoutine, setSelectedRoutine] = useState('all');
+  const [editingSet, setEditingSet] = useState<WorkoutSet | null>(null);
 
   // Unique routines
   const availableRoutines = useMemo(() => {
@@ -482,6 +486,14 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
                               <div className="flex items-center gap-1 shrink-0 ml-1">
                                 <button
                                   type="button"
+                                  onClick={() => setEditingSet(s)}
+                                  className="text-slate-400 hover:text-[#0e7490] dark:hover:text-cyan-400 p-1.5 rounded-md hover:bg-teal-50 dark:hover:bg-slate-700 transition-colors"
+                                  title={`Editar serie ${s.setNumber} (${s.exerciseName})`}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => onDuplicateSet(s)}
                                   className="text-slate-400 hover:text-[#0e7490] dark:hover:text-cyan-400 p-1.5 rounded-md hover:bg-teal-50 dark:hover:bg-slate-700 transition-colors"
                                   title={`Duplicar serie ${s.setNumber} para este ejercicio`}
@@ -509,6 +521,20 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal to edit existing series */}
+      {editingSet && onUpdateSet && (
+        <EditSetModal
+          isOpen={!!editingSet}
+          setToEdit={editingSet}
+          exercises={exercises}
+          onClose={() => setEditingSet(null)}
+          onSave={(updated) => {
+            onUpdateSet(updated);
+            setEditingSet(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -104,6 +104,25 @@ export function sortSetsChronological(
   });
 }
 
+/**
+ * Sorts sets strictly by recency (the most recently entered/logged set appears first at the top).
+ * Used for "Últimas series" at the bottom of the Inicio tab.
+ */
+export function sortSetsLatestFirst(setsList: WorkoutSet[]): WorkoutSet[] {
+  return [...setsList].sort((a, b) => {
+    // 1. Newest date first
+    if (a.date !== b.date) {
+      return b.date.localeCompare(a.date);
+    }
+    // 2. Within same date: newest timestamp first (latest entered)
+    if ((a.timestamp || 0) !== (b.timestamp || 0)) {
+      return (b.timestamp || 0) - (a.timestamp || 0);
+    }
+    // 3. Fallback: higher set number first
+    return b.setNumber - a.setNumber;
+  });
+}
+
 export function generateSampleSets(): WorkoutSet[] {
   const baseTimestamp = Date.now() - 14 * 86400000;
   const day = 86400000;

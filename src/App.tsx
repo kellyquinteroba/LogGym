@@ -147,6 +147,15 @@ export default function App() {
     setSets((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const handleUpdateSet = (updatedSet: WorkoutSet) => {
+    setSets((prev) =>
+      sortSetsChronological(
+        prev.map((s) => (s.id === updatedSet.id ? updatedSet : s)),
+        'desc'
+      )
+    );
+  };
+
   const handleDuplicateSet = (original: WorkoutSet) => {
     const sameSessionSets = sets.filter(
       (s) => s.exerciseId === original.exerciseId && s.date === original.date
@@ -336,6 +345,7 @@ export default function App() {
               }}
               onDeleteSet={handleDeleteSet}
               onDuplicateSet={handleDuplicateSet}
+              onUpdateSet={handleUpdateSet}
               onLoadSampleData={handleLoadSampleData}
               onOpenExcelModal={() => setIsExcelModalOpen(true)}
               onOpenInstallModal={() => setIsInstallAppModalOpen(true)}

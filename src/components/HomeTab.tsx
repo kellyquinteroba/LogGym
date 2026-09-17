@@ -2,7 +2,7 @@ import React from 'react';
 import { WorkoutSet, Exercise } from '../types';
 import { QuickLogCard } from './QuickLogCard';
 import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight } from 'lucide-react';
-import { calculateTotalVolume, calculateAverageRPE, formatDisplayDate, sortSetsChronological } from '../utils/calculations';
+import { calculateTotalVolume, calculateAverageRPE, formatDisplayDate, sortSetsLatestFirst } from '../utils/calculations';
 
 interface HomeTabProps {
   sets: WorkoutSet[];
@@ -34,7 +34,8 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const totalSetsCount = sets.length;
   const avgRpe = calculateAverageRPE(sets);
 
-  const latestSets = sortSetsChronological(sets, 'desc').slice(0, 5);
+  // Latest sets ordered strictly by recency: newest entered set first
+  const latestSets = sortSetsLatestFirst(sets).slice(0, 6);
 
   const scrollToQuickLog = () => {
     const el = document.getElementById('quick-log-card');
