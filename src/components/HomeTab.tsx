@@ -2,7 +2,14 @@ import React from 'react';
 import { WorkoutSet, Exercise } from '../types';
 import { QuickLogCard } from './QuickLogCard';
 import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight } from 'lucide-react';
-import { calculateTotalVolume, calculateAverageRPE, formatDisplayDate, sortSetsLatestFirst } from '../utils/calculations';
+import {
+  calculateTotalVolume,
+  calculateAverageRPE,
+  formatDisplayDate,
+  sortSetsLatestFirst,
+  calculateSetVolume,
+} from '../utils/calculations';
+import { getSetStyleConfig } from '../utils/setStyles';
 
 interface HomeTabProps {
   sets: WorkoutSet[];
@@ -192,13 +199,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                 className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800/80 p-3 shadow-xs hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center justify-between"
               >
                 <div className="min-w-0 flex-1 mr-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
                       {s.exerciseName}
                     </h4>
                     <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">
                       Serie {s.setNumber}
                     </span>
+                    {s.setStyle && s.setStyle !== 'normal' && (() => {
+                      const styleCfg = getSetStyleConfig(s.setStyle, s.customStyleName);
+                      return (
+                        <span
+                          className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border tracking-tight ${styleCfg.badgeClasses}`}
+                          title={`${styleCfg.label}: ${styleCfg.description}`}
+                        >
+                          {styleCfg.shortBadge}
+                        </span>
+                      );
+                    })()}
+                    {s.pairedExerciseName && (
+                      <span className="text-[9px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/40">
+                        ↳ con {s.pairedExerciseName}
+                      </span>
+                    )}
                     <span className="text-[10px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 px-1.5 py-0.5 rounded font-medium border border-transparent dark:border-teal-800/40">
                       {s.routine}
                     </span>
@@ -214,7 +237,28 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                     <span className="flex items-center gap-0.5 text-slate-500 dark:text-slate-400">
                       <Clock className="w-3 h-3" /> {s.restSeconds}s
                     </span>
+                    {s.dropStages && s.dropStages.length > 0 && (
+                      <span className="text-amber-700 dark:text-amber-400 font-bold ml-auto text-[10px]">
+                        Vol: {calculateSetVolume(s).toLocaleString()} kg
+                      </span>
+                    )}
                   </div>
+
+                  {/* Drops sequence if dropset */}
+                  {s.dropStages && s.dropStages.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/30 px-2 py-1 rounded-md border border-amber-200/50 dark:border-amber-800/40">
+                      <span className="font-extrabold uppercase text-[9px] bg-amber-200 dark:bg-amber-900 px-1 py-0.2 rounded">
+                        Drops en 1 serie
+                      </span>
+                      <span>{s.weightKg}kg × {s.reps}</span>
+                      {s.dropStages.map((ds, idx) => (
+                        <span key={idx} className="flex items-center gap-1 font-semibold">
+                          <span className="text-slate-400">↳</span>
+                          <span>{ds.weightKg}kg × {ds.reps}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {s.notes && (
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 italic mt-1 line-clamp-1">

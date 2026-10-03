@@ -17,6 +17,25 @@ export interface Exercise {
   isCustom?: boolean;
 }
 
+export type SetStyle =
+  | 'normal'
+  | 'dropset'
+  | 'superset'
+  | 'biserie'
+  | 'triserie'
+  | 'rest_pause'
+  | 'myo_reps'
+  | 'top_set'
+  | 'back_off'
+  | 'warmup'
+  | 'failure'
+  | 'custom';
+
+export interface DropStage {
+  weightKg: number;
+  reps: number;
+}
+
 export interface WorkoutSet {
   id: string;
   date: string; // YYYY-MM-DD
@@ -30,6 +49,10 @@ export interface WorkoutSet {
   restSeconds: number; // Rest taken or planned (e.g. 60, 90, 120s)
   notes?: string;
   timestamp: number;
+  setStyle?: SetStyle;
+  customStyleName?: string;
+  pairedExerciseName?: string; // Optional: linked exercise name for superset/biserie
+  dropStages?: DropStage[]; // Array of weight/reps stages within a single drop set
 }
 
 export type TabType = 'home' | 'workouts' | 'progress' | 'exercises';

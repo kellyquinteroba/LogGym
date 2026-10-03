@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Exercise, WorkoutSet } from '../types';
 import { BookOpen, Plus, Search, Trash2, Calendar, ChevronDown, ChevronUp, Copy, Timer, Dumbbell } from 'lucide-react';
-import { formatFriendlyDate, formatDisplayDate, calculateEstimated1RM } from '../utils/calculations';
+import { formatFriendlyDate, formatDisplayDate, calculateEstimated1RM, calculateSetVolume } from '../utils/calculations';
+import { getSetStyleConfig } from '../utils/setStyles';
 
 interface ExercisesTabProps {
   exercises: Exercise[];
@@ -196,12 +197,33 @@ export const ExercisesTab: React.FC<ExercisesTabProps> = ({
                             <span className="font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-1.5 py-0.2 rounded text-[10px]">
                               Serie {s.setNumber}
                             </span>
+                            {s.setStyle && s.setStyle !== 'normal' && (() => {
+                              const styleCfg = getSetStyleConfig(s.setStyle, s.customStyleName);
+                              return (
+                                <span
+                                  className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border tracking-tight ${styleCfg.badgeClasses}`}
+                                  title={`${styleCfg.label}: ${styleCfg.description}`}
+                                >
+                                  {styleCfg.shortBadge}
+                                </span>
+                              );
+                            })()}
+                            {s.pairedExerciseName && (
+                              <span className="text-[9px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-200/50 dark:border-purple-800/40">
+                                ↳ con {s.pairedExerciseName}
+                              </span>
+                            )}
                             <span className="font-bold text-slate-900 dark:text-white">
                               {s.weightKg} kg × {s.reps} reps
                             </span>
                             <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                               RPE {s.rpe}
                             </span>
+                            {s.dropStages && s.dropStages.length > 0 && (
+                              <span className="text-amber-700 dark:text-amber-400 font-bold text-[10px]">
+                                (+{s.dropStages.map((d) => `${d.weightKg}kg×${d.reps}`).join(', ')}) · Vol: {calculateSetVolume(s).toLocaleString()} kg
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1">
                             {onDuplicateSet && (

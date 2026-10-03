@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
-import { WorkoutSet, Exercise } from '../types';
-import { calculateEstimated1RM } from './calculations';
+import { WorkoutSet, Exercise, SetStyle } from '../types';
+import { calculateEstimated1RM, calculateSetVolume } from './calculations';
+import { getSetStyleConfig } from './setStyles';
 
 /**
  * Export workout sets to a comprehensive Excel (.xlsx) file with multiple sheets.
@@ -26,17 +27,27 @@ export function exportWorkoutSetsToExcel(sets: WorkoutSet[], exercises: Exercise
   const detailedData = sortedSets.map((s) => {
     const ex = exerciseMap.get(s.exerciseId) || exerciseMap.get(s.exerciseName.toLowerCase());
     const muscle = ex ? ex.category : 'General';
-    const volume = Math.round(s.weightKg * s.reps * 10) / 10;
+    const volume = calculateSetVolume(s);
     const est1RM = calculateEstimated1RM(s.weightKg, s.reps);
+    const styleCfg = getSetStyleConfig(s.setStyle, s.customStyleName);
+    const styleDisplay = s.pairedExerciseName 
+      ? `${styleCfg.label} (con ${s.pairedExerciseName})`
+      : styleCfg.label;
+
+    const dropsFormatted = s.dropStages && s.dropStages.length > 0
+      ? `Inicial: ${s.weightKg}kg × ${s.reps} | ` + s.dropStages.map((ds, i) => `Drop ${i + 1}: ${ds.weightKg}kg × ${ds.reps}`).join(' | ')
+      : '';
 
     return {
       'Fecha': s.date,
       'Rutina': s.routine || 'General',
       'Ejercicio': s.exerciseName,
       'Grupo Muscular': muscle,
+      'Estilo de Serie': styleDisplay,
       'Serie Nº': s.setNumber,
       'Peso (kg)': s.weightKg,
       'Repeticiones': s.reps,
+      'Detalle Bajadas (Drops)': dropsFormatted,
       'RPE (Esfuerzo)': s.rpe,
       'Descanso (seg)': s.restSeconds,
       'Volumen Serie (kg)': volume,
@@ -62,7 +73,7 @@ export function exportWorkoutSetsToExcel(sets: WorkoutSet[], exercises: Exercise
   sets.forEach((s) => {
     const ex = exerciseMap.get(s.exerciseId) || exerciseMap.get(s.exerciseName.toLowerCase());
     const muscle = ex ? ex.category : 'General';
-    const volume = s.weightKg * s.reps;
+    const volume = calculateSetVolume(s);
     const est1RM = calculateEstimated1RM(s.weightKg, s.reps);
 
     const existing = exerciseStatsMap.get(s.exerciseName);
@@ -215,28 +226,31 @@ export function downloadExcelTemplate(): string {
       'Fecha': '2026-09-07',
       'Rutina': 'Torso / Empuje',
       'Ejercicio': 'Press de banca plano',
+      'Estilo de Serie': 'Top Set (Pesada)',
       'Serie Nº': 1,
-      'Peso (kg)': 80,
-      'Repeticiones': 8,
-      'RPE (Esfuerzo)': 8.5,
-      'Descanso (seg)': 120,
-      'Notas': 'Buena velocidad concéntrica',
+      'Peso (kg)': 85,
+      'Repeticiones': 6,
+      'RPE (Esfuerzo)': 9,
+      'Descanso (seg)': 150,
+      'Notas': 'Serie pesada principal del día',
     },
     {
       'Fecha': '2026-09-07',
       'Rutina': 'Torso / Empuje',
       'Ejercicio': 'Press de banca plano',
+      'Estilo de Serie': 'Drop Set (Descendente)',
       'Serie Nº': 2,
-      'Peso (kg)': 80,
-      'Repeticiones': 8,
-      'RPE (Esfuerzo)': 9,
-      'Descanso (seg)': 120,
-      'Notas': '',
+      'Peso (kg)': 65,
+      'Repeticiones': 12,
+      'RPE (Esfuerzo)': 9.5,
+      'Descanso (seg)': 90,
+      'Notas': 'Descenso de peso inmediato',
     },
     {
       'Fecha': '2026-09-07',
       'Rutina': 'Torso / Empuje',
       'Ejercicio': 'Press militar con barra',
+      'Estilo de Serie': 'Superset (con Elevaciones laterales)',
       'Serie Nº': 1,
       'Peso (kg)': 50,
       'Repeticiones': 10,
@@ -253,6 +267,7 @@ export function downloadExcelTemplate(): string {
     { wch: 14 },
     { wch: 18 },
     { wch: 25 },
+    { wch: 22 },
     { wch: 10 },
     { wch: 12 },
     { wch: 14 },
@@ -311,6 +326,7 @@ export async function importWorkoutSetsFromExcel(
     const rawRest = row['Descanso (seg)'] || row['Descanso'] || row['descanso'] || row['Rest'];
     const rawRoutine = row['Rutina'] || row['rutina'] || row['Routine'] || 'General';
     const rawNotes = row['Notas'] || row['notas'] || row['Notes'] || '';
+    const rawStyle = String(row['Estilo de Serie'] || row['Estilo'] || row['Tipo de Serie'] || row['Style'] || '').trim();
 
     if (!rawExercise) return;
 
@@ -322,6 +338,43 @@ export async function importWorkoutSetsFromExcel(
     const setNum = parseInt(String(rawSetNumber), 10) || 1;
     const rpe = parseFloat(String(rawRpe)) || 8;
     const restSeconds = parseInt(String(rawRest), 10) || 90;
+
+    let setStyle: SetStyle = 'normal';
+    let customStyleName: string | undefined = undefined;
+    let pairedExerciseName: string | undefined = undefined;
+
+    if (rawStyle) {
+      const lower = rawStyle.toLowerCase();
+      const pairedMatch = rawStyle.match(/\(con\s+([^)]+)\)/i);
+      if (pairedMatch) {
+        pairedExerciseName = pairedMatch[1].trim();
+      }
+
+      if (lower.includes('drop')) {
+        setStyle = 'dropset';
+      } else if (lower.includes('super')) {
+        setStyle = 'superset';
+      } else if (lower.includes('biserie')) {
+        setStyle = 'biserie';
+      } else if (lower.includes('triserie')) {
+        setStyle = 'triserie';
+      } else if (lower.includes('pause') || lower.includes('rest')) {
+        setStyle = 'rest_pause';
+      } else if (lower.includes('myo')) {
+        setStyle = 'myo_reps';
+      } else if (lower.includes('top')) {
+        setStyle = 'top_set';
+      } else if (lower.includes('back')) {
+        setStyle = 'back_off';
+      } else if (lower.includes('calent') || lower.includes('warm')) {
+        setStyle = 'warmup';
+      } else if (lower.includes('fallo') || lower.includes('amrap')) {
+        setStyle = 'failure';
+      } else if (!lower.includes('normal')) {
+        setStyle = 'custom';
+        customStyleName = rawStyle.replace(/\(con\s+[^)]+\)/i, '').trim();
+      }
+    }
 
     // Anchor timestamp to the actual workout date so chronological sorting is preserved
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -342,6 +395,9 @@ export async function importWorkoutSetsFromExcel(
       restSeconds,
       notes: rawNotes ? String(rawNotes).trim() : undefined,
       timestamp: computedTimestamp,
+      setStyle,
+      customStyleName,
+      pairedExerciseName,
     });
   });
 

@@ -1,8 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { WorkoutSet, Exercise } from '../types';
-import { Dumbbell, Plus, Search, Trash2, Calendar, Timer, Copy, Download, FileSpreadsheet, ChevronRight, Zap, Pencil } from 'lucide-react';
-import { formatDisplayDate, formatFriendlyDate, sortSetsChronological, calculateEstimated1RM } from '../utils/calculations';
+import { WorkoutSet, Exercise, SetStyle } from '../types';
+import { Dumbbell, Plus, Search, Trash2, Calendar, Timer, Copy, Download, FileSpreadsheet, ChevronRight, Zap, Pencil, Layers } from 'lucide-react';
+import {
+  formatDisplayDate,
+  formatFriendlyDate,
+  sortSetsChronological,
+  calculateEstimated1RM,
+  calculateSetVolume,
+  calculateSetTotalReps,
+} from '../utils/calculations';
 import { exportWorkoutSetsToExcel } from '../utils/excel';
+import { getSetStyleConfig, SET_STYLES } from '../utils/setStyles';
 import { EditSetModal } from './EditSetModal';
 
 interface WorkoutsTabProps {
@@ -32,6 +40,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRoutine, setSelectedRoutine] = useState('all');
+  const [selectedStyleFilter, setSelectedStyleFilter] = useState('all');
   const [editingSet, setEditingSet] = useState<WorkoutSet | null>(null);
 
   // Unique routines
@@ -48,11 +57,15 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
     return sets.filter((s) => {
       const matchesSearch =
         s.exerciseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (s.notes && s.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+        (s.notes && s.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (s.pairedExerciseName && s.pairedExerciseName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (s.customStyleName && s.customStyleName.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesRoutine = selectedRoutine === 'all' || s.routine === selectedRoutine;
-      return matchesSearch && matchesRoutine;
+      const setStyleVal = s.setStyle || 'normal';
+      const matchesStyle = selectedStyleFilter === 'all' || setStyleVal === selectedStyleFilter;
+      return matchesSearch && matchesRoutine && matchesStyle;
     });
-  }, [sets, searchTerm, selectedRoutine]);
+  }, [sets, searchTerm, selectedRoutine, selectedStyleFilter]);
 
   // Group by Date and Routine (Chronological: newest session first),
   // and within each session, group by exercise in the exact chronological order entered,
@@ -79,7 +92,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
     return sortedKeys.map((key) => {
       const [date, routine] = key.split('___');
       const sessionSets = sessionMap.get(key) || [];
-      const totalSessionVolume = sessionSets.reduce((sum, s) => sum + s.weightKg * s.reps, 0);
+      const totalSessionVolume = sessionSets.reduce((sum, s) => sum + calculateSetVolume(s), 0);
 
       // Group sets by exercise while strictly preserving the entry order
       const exerciseMap = new Map<
@@ -124,7 +137,7 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
             return (a.timestamp || 0) - (b.timestamp || 0);
           });
 
-          const groupVolume = orderedExerciseSets.reduce((sum, s) => sum + s.weightKg * s.reps, 0);
+          const groupVolume = orderedExerciseSets.reduce((sum, s) => sum + calculateSetVolume(s), 0);
           const maxWeight = Math.max(...orderedExerciseSets.map((s) => s.weightKg), 0);
 
           const exerciseInfo = exercises.find(
@@ -159,19 +172,24 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
   const handleExportCSV = () => {
     if (sets.length === 0) return;
     const sortedSets = sortSetsChronological(sets, 'desc');
-    const headers = ['Fecha', 'Rutina', 'Ejercicio', 'Serie', 'Peso (kg)', 'Reps', 'RPE', 'Descanso (s)', 'Volumen (kg)', 'Notas'];
-    const rows = sortedSets.map((s) => [
-      s.date,
-      `"${s.routine}"`,
-      `"${s.exerciseName}"`,
-      s.setNumber,
-      s.weightKg,
-      s.reps,
-      s.rpe,
-      s.restSeconds,
-      s.weightKg * s.reps,
-      `"${(s.notes || '').replace(/"/g, '""')}"`,
-    ]);
+    const headers = ['Fecha', 'Rutina', 'Ejercicio', 'Estilo de Serie', 'Serie', 'Peso (kg)', 'Reps', 'RPE', 'Descanso (s)', 'Volumen (kg)', 'Notas'];
+    const rows = sortedSets.map((s) => {
+      const styleCfg = getSetStyleConfig(s.setStyle, s.customStyleName);
+      const styleLabel = s.pairedExerciseName ? `${styleCfg.label} (con ${s.pairedExerciseName})` : styleCfg.label;
+      return [
+        s.date,
+        `"${s.routine}"`,
+        `"${s.exerciseName}"`,
+        `"${styleLabel}"`,
+        s.setNumber,
+        s.weightKg,
+        s.reps,
+        s.rpe,
+        s.restSeconds,
+        s.weightKg * s.reps,
+        `"${(s.notes || '').replace(/"/g, '""')}"`,
+      ];
+    });
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
@@ -266,12 +284,12 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
           <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" />
         </div>
 
-        <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <select
             id="select-filtro-rutinas"
             value={selectedRoutine}
             onChange={(e) => setSelectedRoutine(e.target.value)}
-            className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-xl px-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-medium"
+            className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm rounded-xl px-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-medium"
           >
             <option value="all">Todas las rutinas</option>
             {availableRoutines.map((r) => (
@@ -279,6 +297,23 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
                 {r}
               </option>
             ))}
+          </select>
+
+          <select
+            id="select-filtro-estilos"
+            value={selectedStyleFilter}
+            onChange={(e) => setSelectedStyleFilter(e.target.value)}
+            className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm rounded-xl px-3 py-2.5 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all font-medium"
+          >
+            <option value="all">Todos los estilos de serie</option>
+            <option value="dropset">🔥 Drop Sets</option>
+            <option value="superset">⚡ Supersets</option>
+            <option value="biserie">🔗 Biseries</option>
+            <option value="rest_pause">⏱️ Rest-Pause</option>
+            <option value="top_set">🏆 Top Sets</option>
+            <option value="warmup">🛡️ Calentamiento</option>
+            <option value="failure">💥 Al Fallo</option>
+            <option value="custom">✨ Personalizados</option>
           </select>
         </div>
       </div>
@@ -443,6 +478,27 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
                                     Serie {s.setNumber}
                                   </span>
 
+                                  {/* Estilo de Serie Badge */}
+                                  {s.setStyle && s.setStyle !== 'normal' && (() => {
+                                    const styleCfg = getSetStyleConfig(s.setStyle, s.customStyleName);
+                                    return (
+                                      <span
+                                        className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border tracking-tight shrink-0 flex items-center gap-1 ${styleCfg.badgeClasses}`}
+                                        title={`${styleCfg.label}: ${styleCfg.description}`}
+                                      >
+                                        <span className={`w-1.5 h-1.5 rounded-full ${styleCfg.dotColor}`} />
+                                        <span>{styleCfg.shortBadge}</span>
+                                      </span>
+                                    );
+                                  })()}
+
+                                  {/* Paired Exercise for Supersets/Biseries */}
+                                  {s.pairedExerciseName && (
+                                    <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/40 shrink-0 truncate max-w-[150px] sm:max-w-none">
+                                      ↳ con {s.pairedExerciseName}
+                                    </span>
+                                  )}
+
                                   {/* Weight and Reps */}
                                   <div className="flex items-center gap-1 font-bold text-xs text-slate-900 dark:text-white bg-slate-100/80 dark:bg-slate-700/70 px-2 py-0.5 rounded-md">
                                     <span>{s.weightKg} kg</span>
@@ -470,9 +526,40 @@ export const WorkoutsTab: React.FC<WorkoutsTabProps> = ({
 
                                   {/* Volume */}
                                   <span className="text-[11px] text-teal-700 dark:text-cyan-400 font-medium ml-auto">
-                                    {(s.weightKg * s.reps).toLocaleString()} kg
+                                    {calculateSetVolume(s).toLocaleString()} kg
                                   </span>
                                 </div>
+
+                                {/* Multi-Drop Stages Breakdown if Dropset (Serie 1: 100kg-10, 80kg-8, 60kg-5) */}
+                                {s.dropStages && s.dropStages.length > 0 && (
+                                  <div className="mt-2 pl-2.5 py-1.5 border-l-2 border-amber-500/70 dark:border-amber-400/70 bg-amber-50/50 dark:bg-amber-950/25 rounded-r-lg space-y-1">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                      <div className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-100">
+                                        <span className="text-[10px] uppercase font-extrabold text-amber-800 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-900/80 px-1.5 py-0.5 rounded">
+                                          Inicial
+                                        </span>
+                                        <span>{s.weightKg} kg</span>
+                                        <span className="text-slate-400">×</span>
+                                        <span>{s.reps} reps</span>
+                                      </div>
+                                      {s.dropStages.map((ds, idx) => (
+                                        <div key={idx} className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-100">
+                                          <span className="text-[10px] uppercase font-extrabold text-orange-800 dark:text-orange-200 bg-orange-200/80 dark:bg-orange-900/80 px-1.5 py-0.5 rounded">
+                                            Drop {idx + 1}
+                                          </span>
+                                          <span>{ds.weightKg} kg</span>
+                                          <span className="text-slate-400">×</span>
+                                          <span>{ds.reps} reps</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="text-[10px] text-amber-900/80 dark:text-amber-300 font-semibold flex items-center gap-2 pt-0.5">
+                                      <span>Volumen total de la serie: <strong>{calculateSetVolume(s).toLocaleString()} kg</strong></span>
+                                      <span>•</span>
+                                      <span>{calculateSetTotalReps(s)} reps acumuladas</span>
+                                    </div>
+                                  </div>
+                                )}
 
                                 {/* Notes if present */}
                                 {s.notes && (

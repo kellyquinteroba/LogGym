@@ -5,6 +5,7 @@ import {
   calculatePeakLoad,
   countUniqueSessions,
   calculateEstimated1RM,
+  calculateSetVolume,
   formatDisplayDate,
 } from '../utils/calculations';
 import {
@@ -95,7 +96,7 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
           e1RM: 0,
         };
       }
-      const vol = s.weightKg * s.reps;
+      const vol = calculateSetVolume(s);
       grouped[d].volumen += vol;
       grouped[d].series += 1;
       grouped[d].restTotal += s.restSeconds || 0;

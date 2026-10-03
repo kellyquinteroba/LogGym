@@ -9,8 +9,28 @@ export function calculateEstimated1RM(weightKg: number, reps: number): number {
   return Math.round(brzycki * 10) / 10;
 }
 
+export function calculateSetVolume(set: WorkoutSet): number {
+  let vol = (set.weightKg || 0) * (set.reps || 0);
+  if (set.dropStages && Array.isArray(set.dropStages) && set.dropStages.length > 0) {
+    for (const stage of set.dropStages) {
+      vol += (Number(stage.weightKg) || 0) * (Number(stage.reps) || 0);
+    }
+  }
+  return Math.round(vol * 10) / 10;
+}
+
+export function calculateSetTotalReps(set: WorkoutSet): number {
+  let total = Number(set.reps) || 0;
+  if (set.dropStages && Array.isArray(set.dropStages) && set.dropStages.length > 0) {
+    for (const stage of set.dropStages) {
+      total += Number(stage.reps) || 0;
+    }
+  }
+  return total;
+}
+
 export function calculateTotalVolume(sets: WorkoutSet[]): number {
-  return sets.reduce((acc, s) => acc + (s.weightKg * s.reps), 0);
+  return sets.reduce((acc, s) => acc + calculateSetVolume(s), 0);
 }
 
 export function calculateAverageRPE(sets: WorkoutSet[]): number {
@@ -176,6 +196,7 @@ export function generateSampleSets(): WorkoutSet[] {
       restSeconds: 120,
       notes: 'Última repetición exigente pero limpia',
       timestamp: todayBase + 240000,
+      setStyle: 'top_set',
     },
     {
       id: 'today-4',
@@ -190,6 +211,7 @@ export function generateSampleSets(): WorkoutSet[] {
       restSeconds: 60,
       notes: 'Codos pegados al cuerpo, recorrido completo',
       timestamp: todayBase + 400000,
+      setStyle: 'normal',
     },
     {
       id: 'today-5',
@@ -202,8 +224,10 @@ export function generateSampleSets(): WorkoutSet[] {
       reps: 10,
       rpe: 8,
       restSeconds: 60,
-      notes: 'Buen bombeo en la fase excéntrica',
+      notes: 'Biserie con Fondos en paralelas',
       timestamp: todayBase + 520000,
+      setStyle: 'biserie',
+      pairedExerciseName: 'Fondos en paralelas',
     },
     {
       id: 'today-6',
@@ -212,12 +236,36 @@ export function generateSampleSets(): WorkoutSet[] {
       exerciseId: 'ex-12',
       exerciseName: 'Extensión de Tríceps',
       setNumber: 3,
-      weightKg: 32.5,
-      reps: 8,
-      rpe: 8.5,
-      restSeconds: 75,
-      notes: 'Drop set suave al fallo técnico',
+      weightKg: 100,
+      reps: 10,
+      rpe: 9,
+      restSeconds: 90,
+      notes: 'Drop set 3 etapas al fallo técnico',
       timestamp: todayBase + 640000,
+      setStyle: 'dropset',
+      dropStages: [
+        { weightKg: 80, reps: 8 },
+        { weightKg: 60, reps: 5 },
+      ],
+    },
+    {
+      id: 'today-6-b',
+      date: todayStr,
+      routine: 'Torso & Brazos',
+      exerciseId: 'ex-12',
+      exerciseName: 'Extensión de Tríceps',
+      setNumber: 4,
+      weightKg: 100,
+      reps: 10,
+      rpe: 9.5,
+      restSeconds: 90,
+      notes: 'Drop set Serie 4 repitiendo esquema',
+      timestamp: todayBase + 720000,
+      setStyle: 'dropset',
+      dropStages: [
+        { weightKg: 80, reps: 8 },
+        { weightKg: 60, reps: 5 },
+      ],
     },
     {
       id: 'today-7',
@@ -232,6 +280,7 @@ export function generateSampleSets(): WorkoutSet[] {
       restSeconds: 120,
       notes: 'Retracción escapular firme y control',
       timestamp: todayBase + 800000,
+      setStyle: 'normal',
     },
     {
       id: 'today-8',
@@ -244,8 +293,10 @@ export function generateSampleSets(): WorkoutSet[] {
       reps: 6,
       rpe: 8.5,
       restSeconds: 120,
-      notes: 'Rumbo al récord',
+      notes: 'Superset con Remo con mancuerna',
       timestamp: todayBase + 940000,
+      setStyle: 'superset',
+      pairedExerciseName: 'Remo con mancuerna',
     },
     {
       id: 'today-9',

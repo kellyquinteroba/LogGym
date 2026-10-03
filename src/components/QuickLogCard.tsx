@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Exercise, WorkoutSet } from '../types';
+import { Exercise, WorkoutSet, SetStyle, DropStage } from '../types';
 import { getTodayDateString } from '../utils/calculations';
-import { Sparkles, Timer, Check, Plus } from 'lucide-react';
+import { SET_STYLES, getSetStyleConfig } from '../utils/setStyles';
+import { Sparkles, Timer, Check, Plus, Layers, Flame, Zap, Link2, Info, Trash2, ArrowDown } from 'lucide-react';
 
 interface QuickLogCardProps {
   exercises: Exercise[];
@@ -10,6 +11,11 @@ interface QuickLogCardProps {
   onViewHistory: () => void;
   initialExerciseId?: string;
   onOpenNewExerciseModal?: () => void;
+}
+
+interface DropStageInput {
+  weightKg: number | '';
+  reps: number | '';
 }
 
 export const QuickLogCard: React.FC<QuickLogCardProps> = ({
@@ -29,8 +35,17 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
   const [rpe, setRpe] = useState<number | ''>(7);
   const [restSeconds, setRestSeconds] = useState(90);
   const [notes, setNotes] = useState('');
+  const [setStyle, setSetStyle] = useState<SetStyle>('normal');
+  const [customStyleName, setCustomStyleName] = useState('');
+  const [pairedExerciseName, setPairedExerciseName] = useState('');
   const [autoStartTimer, setAutoStartTimer] = useState(true);
   const [justSaved, setJustSaved] = useState(false);
+
+  // Drop stages for dropset style (e.g. 100kg x 10, then drop 1: 80kg x 8, drop 2: 60kg x 5)
+  const [dropStages, setDropStages] = useState<DropStageInput[]>([
+    { weightKg: 80, reps: 8 },
+    { weightKg: 60, reps: 5 },
+  ]);
 
   // Sync initial exercise if passed externally
   useEffect(() => {
@@ -54,6 +69,17 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
         setWeightKg(lastSet.weightKg);
         setReps(lastSet.reps);
         setRpe(lastSet.rpe);
+        if (lastSet.setStyle) {
+          setSetStyle(lastSet.setStyle);
+        }
+        if (lastSet.dropStages && lastSet.dropStages.length > 0) {
+          setDropStages(
+            lastSet.dropStages.map((st) => ({
+              weightKg: st.weightKg,
+              reps: st.reps,
+            }))
+          );
+        }
       }
     } else {
       // Find latest overall set for this exercise to help with weight
@@ -68,6 +94,44 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
 
   const selectedExercise = exercises.find((e) => e.id === exerciseId);
 
+  const handleSelectStyle = (newStyle: SetStyle) => {
+    setSetStyle(newStyle);
+    if (newStyle === 'dropset' && dropStages.length === 0) {
+      const curWeight = Number(weightKg) || 100;
+      const drop1 = Math.max(1, Math.round(curWeight * 0.8 * 2) / 2);
+      const drop2 = Math.max(1, Math.round(curWeight * 0.6 * 2) / 2);
+      setDropStages([
+        { weightKg: drop1, reps: 8 },
+        { weightKg: drop2, reps: 5 },
+      ]);
+    }
+  };
+
+  const handleAddDropStage = () => {
+    setDropStages((prev) => {
+      let lastWeight = Number(weightKg) || 60;
+      let lastReps = Number(reps) || 8;
+      if (prev.length > 0) {
+        const last = prev[prev.length - 1];
+        lastWeight = Number(last.weightKg) || lastWeight;
+        lastReps = Number(last.reps) || lastReps;
+      }
+      const nextWeight = Math.max(0, Math.round(lastWeight * 0.8 * 2) / 2);
+      const nextReps = Math.max(1, lastReps - 2 || 5);
+      return [...prev, { weightKg: nextWeight, reps: nextReps }];
+    });
+  };
+
+  const handleUpdateDropStage = (index: number, field: 'weightKg' | 'reps', value: number | '') => {
+    setDropStages((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleRemoveDropStage = (index: number) => {
+    setDropStages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExercise) return;
@@ -75,6 +139,16 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
     const parsedWeight = typeof weightKg === 'number' ? weightKg : parseFloat(String(weightKg)) || 0;
     const parsedReps = typeof reps === 'number' ? reps : parseInt(String(reps), 10) || 1;
     const parsedRpe = typeof rpe === 'number' ? rpe : parseFloat(String(rpe)) || 7;
+
+    const cleanedDropStages: DropStage[] | undefined =
+      setStyle === 'dropset' && dropStages.length > 0
+        ? dropStages
+            .filter((st) => Number(st.weightKg) > 0 || Number(st.reps) > 0)
+            .map((st) => ({
+              weightKg: typeof st.weightKg === 'number' ? st.weightKg : parseFloat(String(st.weightKg)) || 0,
+              reps: typeof st.reps === 'number' ? st.reps : parseInt(String(st.reps), 10) || 1,
+            }))
+        : undefined;
 
     onSaveSet(
       {
@@ -88,17 +162,32 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
         rpe: parsedRpe,
         restSeconds: Number(restSeconds) || 90,
         notes: notes.trim(),
+        setStyle,
+        customStyleName: setStyle === 'custom' ? customStyleName.trim() : undefined,
+        pairedExerciseName:
+          setStyle === 'superset' || setStyle === 'biserie' || setStyle === 'triserie'
+            ? pairedExerciseName.trim()
+            : undefined,
+        dropStages: cleanedDropStages,
       },
       autoStartTimer
     );
 
-    // Prepare for next set
+    // Prepare for next set (Serie 2, Serie 3, etc.) - preserves dropset config so user can repeat drops smoothly!
     setSetNumber((prev) => prev + 1);
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2200);
   };
 
-  const calculatedVolume = (Number(weightKg) || 0) * (Number(reps) || 0);
+  const initialVolume = (Number(weightKg) || 0) * (Number(reps) || 0);
+  const dropsVolume =
+    setStyle === 'dropset'
+      ? dropStages.reduce((sum, d) => sum + (Number(d.weightKg) || 0) * (Number(d.reps) || 0), 0)
+      : 0;
+  const calculatedVolume = initialVolume + dropsVolume;
+  const totalSetReps =
+    (Number(reps) || 0) +
+    (setStyle === 'dropset' ? dropStages.reduce((sum, d) => sum + (Number(d.reps) || 0), 0) : 0);
 
   return (
     <div id="quick-log-card" className="mt-6">
@@ -211,7 +300,9 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
             {/* Peso (kg) */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Peso (kg)</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {setStyle === 'dropset' ? 'Peso inicial (Etapa 1)' : 'Peso (kg)'}
+                </label>
                 {calculatedVolume > 0 && (
                   <span className="text-[10px] text-teal-700 dark:text-cyan-400 font-medium">
                     Vol: {calculatedVolume} kg
@@ -232,7 +323,9 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
 
             {/* Reps */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Reps</label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                {setStyle === 'dropset' ? 'Reps iniciales (Etapa 1)' : 'Reps'}
+              </label>
               <input
                 type="number"
                 id="input-reps"
@@ -262,6 +355,280 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
                 className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
             </div>
+          </div>
+
+          {/* Estilo de Serie (Drop Set, Superset, Biserie, etc.) */}
+          <div className="bg-slate-50/70 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400" />
+                Estilo de serie
+              </label>
+              <select
+                id="select-estilo-serie-menu"
+                value={setStyle}
+                onChange={(e) => handleSelectStyle(e.target.value as SetStyle)}
+                className="text-[11px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-800 dark:text-slate-200 font-semibold focus:outline-none focus:ring-1 focus:ring-[#0e7490]"
+              >
+                {SET_STYLES.map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick style chips */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {[
+                { id: 'normal' as const, label: 'Normal' },
+                { id: 'dropset' as const, label: 'Drop Set', icon: Flame },
+                { id: 'superset' as const, label: 'Superset', icon: Zap },
+                { id: 'biserie' as const, label: 'Biserie', icon: Link2 },
+                { id: 'rest_pause' as const, label: 'Rest-Pause' },
+                { id: 'top_set' as const, label: 'Top Set' },
+              ].map((item) => {
+                const isSelected = setStyle === item.id;
+                const IconComponent = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectStyle(item.id)}
+                    className={`py-1 px-2.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#0e7490] text-white border-[#0e7490] shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {IconComponent && <IconComponent className="w-3 h-3" />}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dropset Multi-Drop Section (Registrar en 1 serie los diferentes pesos) */}
+            {setStyle === 'dropset' && (
+              <div className="mt-3 pt-3 border-t border-amber-200/80 dark:border-amber-800/60 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-extrabold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                    <Flame className="w-4 h-4 text-orange-500 animate-pulse" />
+                    Bajadas consecutivas de peso (Drops en Serie {setNumber}):
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                    {1 + dropStages.length} pesos en 1 serie
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
+                  Haz tu peso inicial y de inmediato (sin descanso) pasa a los siguientes pesos decrecientes:
+                </p>
+
+                {/* Stage 1 (Initial) Summary line */}
+                <div className="flex items-center justify-between text-xs bg-slate-100/90 dark:bg-slate-800/90 px-3 py-1.5 rounded-lg mb-2 font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold bg-[#0e7490] text-white px-1.5 py-0.5 rounded">
+                      Etapa 1
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {weightKg || 0} kg × {reps || 0} reps
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Peso inicial
+                  </span>
+                </div>
+
+                {/* Drops list */}
+                <div className="space-y-2">
+                  {dropStages.map((stage, idx) => {
+                    const stageVol = (Number(stage.weightKg) || 0) * (Number(stage.reps) || 0);
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-amber-50/70 dark:bg-amber-950/30 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/50"
+                      >
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[10px] font-extrabold text-amber-900 dark:text-amber-200 bg-amber-200/80 dark:bg-amber-900/80 px-2 py-1 rounded-md">
+                            Drop {idx + 1}
+                          </span>
+                        </div>
+
+                        {/* Weight input */}
+                        <div className="flex-1">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              placeholder="80"
+                              value={stage.weightKg}
+                              onChange={(e) =>
+                                handleUpdateDropStage(
+                                  idx,
+                                  'weightKg',
+                                  e.target.value === '' ? '' : Number(e.target.value)
+                                )
+                              }
+                              className="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold rounded-lg pl-2 pr-7 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            <span className="absolute right-2 top-1.5 text-[10px] text-slate-400 font-semibold pointer-events-none">
+                              kg
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Reps input */}
+                        <div className="flex-1">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="1"
+                              max="100"
+                              placeholder="8"
+                              value={stage.reps}
+                              onChange={(e) =>
+                                handleUpdateDropStage(
+                                  idx,
+                                  'reps',
+                                  e.target.value === '' ? '' : Number(e.target.value)
+                                )
+                              }
+                              className="w-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold rounded-lg pl-2 pr-9 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            />
+                            <span className="absolute right-2 top-1.5 text-[10px] text-slate-400 font-semibold pointer-events-none">
+                              reps
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subtotal */}
+                        {stageVol > 0 && (
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 shrink-0 hidden sm:inline">
+                            {stageVol} kg
+                          </span>
+                        )}
+
+                        {/* Remove button */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDropStage(idx)}
+                          className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 p-1 rounded-md transition-colors"
+                          title="Eliminar esta bajada"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add drop button */}
+                <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                  <button
+                    type="button"
+                    onClick={handleAddDropStage}
+                    className="text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-100 hover:bg-amber-200/80 dark:bg-amber-900/50 dark:hover:bg-amber-900/80 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 flex items-center gap-1.5 transition-all shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
+                    Añadir bajada (drop)
+                  </button>
+
+                  {dropStages.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const w = Number(weightKg) || 100;
+                        setDropStages([
+                          { weightKg: Math.round(w * 0.8), reps: 8 },
+                          { weightKg: Math.round(w * 0.6), reps: 5 },
+                        ]);
+                      }}
+                      className="text-xs text-amber-700 dark:text-cyan-400 hover:underline font-medium"
+                    >
+                      + Cargar 2 bajadas (ej. 100kg → 80kg → 60kg)
+                    </button>
+                  )}
+                </div>
+
+                {/* Live Preview Card matching user specification */}
+                <div className="mt-2.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-950/40 dark:to-orange-950/40 rounded-xl p-2.5 border border-amber-300/40 dark:border-amber-800/40 text-xs">
+                  <div className="flex items-center justify-between font-extrabold text-amber-950 dark:text-amber-200 mb-1">
+                    <span className="flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-orange-500" />
+                      Serie {setNumber} Dropset completo:
+                    </span>
+                    <span className="text-slate-900 dark:text-white">
+                      {calculatedVolume.toLocaleString()} kg · {totalSetReps} reps
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-0.5 font-mono">
+                    <div>• {weightKg || 0} kg - {reps || 0} reps</div>
+                    {dropStages.map((ds, i) => (
+                      <div key={i} className="text-amber-800 dark:text-amber-300 font-semibold">
+                        ↳ {ds.weightKg || 0} kg - {ds.reps || 0} reps
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Paired exercise input if Superset, Biserie or Triserie is chosen */}
+            {(setStyle === 'superset' || setStyle === 'biserie' || setStyle === 'triserie') && (
+              <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 animate-in fade-in duration-150">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+                  <Link2 className="w-3 h-3 text-[#0e7490] dark:text-cyan-400" />
+                  Ejercicio complementario / en pareja (opcional):
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="paired-exercises-list"
+                    value={pairedExerciseName}
+                    onChange={(e) => setPairedExerciseName(e.target.value)}
+                    placeholder="Ej. Elevaciones laterales, Curl de bíceps, Fondos..."
+                    className="w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-[#0e7490] dark:focus:ring-cyan-500 placeholder:text-slate-400"
+                  />
+                  <datalist id="paired-exercises-list">
+                    {exercises
+                      .filter((ex) => ex.id !== exerciseId)
+                      .map((ex) => (
+                        <option key={ex.id} value={ex.name}>
+                          {ex.category}
+                        </option>
+                      ))}
+                  </datalist>
+                </div>
+              </div>
+            )}
+
+            {/* Custom style name input */}
+            {setStyle === 'custom' && (
+              <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 animate-in fade-in duration-150">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Nombre de tu variante / estilo:
+                </label>
+                <input
+                  type="text"
+                  value={customStyleName}
+                  onChange={(e) => setCustomStyleName(e.target.value)}
+                  placeholder="Ej. Cluster Set, Isometría al fallo..."
+                  className="w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-[#0e7490] dark:focus:ring-cyan-500"
+                />
+              </div>
+            )}
+
+            {/* Style explanation cue */}
+            {setStyle !== 'normal' && (
+              <div className="mt-2 flex items-start gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-800/80 p-2 rounded-lg border border-slate-100 dark:border-slate-700/60">
+                <Info className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400 shrink-0 mt-0.5" />
+                <p className="leading-snug">
+                  <strong>{getSetStyleConfig(setStyle, customStyleName).label}:</strong>{' '}
+                  {getSetStyleConfig(setStyle, customStyleName).description}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Descanso entre series */}
@@ -331,10 +698,17 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
             >
               {justSaved ? (
                 <>
-                  <Check className="w-4 h-4" /> ¡Serie registrada con éxito!
+                  <Check className="w-4 h-4" /> ¡Serie {setNumber - 1} registrada! Lista Serie {setNumber}
                 </>
               ) : (
-                <>Guardar serie</>
+                <>
+                  Guardar Serie {setNumber}
+                  {setStyle === 'dropset'
+                    ? ` (Dropset · ${calculatedVolume.toLocaleString()} kg)`
+                    : calculatedVolume > 0
+                    ? ` (${calculatedVolume.toLocaleString()} kg)`
+                    : ''}
+                </>
               )}
             </button>
           </div>
