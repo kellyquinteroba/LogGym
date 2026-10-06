@@ -1,7 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Exercise, WorkoutSet } from '../types';
 import { BookOpen, Plus, Search, Trash2, Calendar, ChevronDown, ChevronUp, Copy, Timer, Dumbbell } from 'lucide-react';
-import { formatFriendlyDate, formatDisplayDate, calculateEstimated1RM, calculateSetVolume } from '../utils/calculations';
+import {
+  formatFriendlyDate,
+  formatDisplayDate,
+  calculateEstimated1RM,
+  calculateSetVolume,
+  sortExercisesAlphabetically,
+} from '../utils/calculations';
 import { getSetStyleConfig } from '../utils/setStyles';
 
 interface ExercisesTabProps {
@@ -34,14 +40,16 @@ export const ExercisesTab: React.FC<ExercisesTabProps> = ({
   }, [exercises]);
 
   const filteredExercises = useMemo(() => {
-    return exercises.filter((ex) => {
-      const matchesSearch =
-        ex.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ex.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ex.cues.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesGroup = selectedGroup === 'all' || ex.category === selectedGroup;
-      return matchesSearch && matchesGroup;
-    });
+    return sortExercisesAlphabetically(
+      exercises.filter((ex) => {
+        const matchesSearch =
+          ex.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          ex.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          ex.cues.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesGroup = selectedGroup === 'all' || ex.category === selectedGroup;
+        return matchesSearch && matchesGroup;
+      })
+    );
   }, [exercises, searchTerm, selectedGroup]);
 
   // Map sets by exercise

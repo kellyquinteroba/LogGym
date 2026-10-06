@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { WorkoutSet, Exercise, SetStyle, DropStage } from '../types';
 import { SET_STYLES, getSetStyleConfig } from '../utils/setStyles';
+import { sortExercisesAlphabetically } from '../utils/calculations';
 import { X, Check, Dumbbell, Calendar, Timer, Tag, Layers, Link2, Info, Flame, Plus, Trash2 } from 'lucide-react';
 
 interface EditSetModalProps {
@@ -18,6 +19,10 @@ export const EditSetModal: React.FC<EditSetModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const sortedExercises = useMemo(() => {
+    return sortExercisesAlphabetically(exercises);
+  }, [exercises]);
+
   const [exerciseId, setExerciseId] = useState('');
   const [exerciseName, setExerciseName] = useState('');
   const [routine, setRoutine] = useState('');
@@ -174,12 +179,12 @@ export const EditSetModal: React.FC<EditSetModalProps> = ({
               onChange={handleExerciseChange}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0e7490]"
             >
-              {exercises.map((ex) => (
+              {sortedExercises.map((ex) => (
                 <option key={ex.id} value={ex.id}>
                   {ex.name} ({ex.category})
                 </option>
               ))}
-              {!exercises.some((e) => e.id === exerciseId) && (
+              {!sortedExercises.some((e) => e.id === exerciseId) && (
                 <option value={exerciseId}>{exerciseName || 'Ejercicio seleccionado'}</option>
               )}
             </select>

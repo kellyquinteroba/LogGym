@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react';
-import { TabType, WorkoutSet, Exercise } from './types';
+import { TabType, WorkoutSet, Exercise, WeeklySchedule } from './types';
 import { INITIAL_EXERCISES } from './data/initialExercises';
-import { generateSampleSets, sortSetsChronological, getTodayDateString } from './utils/calculations';
+import {
+  generateSampleSets,
+  sortSetsChronological,
+  getTodayDateString,
+  sortExercisesAlphabetically,
+} from './utils/calculations';
+import { INITIAL_WEEKLY_SCHEDULE, getTodayDayOfWeek } from './utils/schedule';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
+import { PlannerTab } from './components/PlannerTab';
 import { WorkoutsTab } from './components/WorkoutsTab';
 import { ProgressTab } from './components/ProgressTab';
 import { ExercisesTab } from './components/ExercisesTab';
@@ -17,9 +24,14 @@ const STORAGE_KEY_SETS = 'fuerzalog_sets_v1';
 const STORAGE_KEY_EXERCISES = 'fuerzalog_exercises_v1';
 const STORAGE_KEY_SOUND = 'fuerzalog_sound_v1';
 const STORAGE_KEY_THEME = 'fuerzalog_theme_v1';
+const STORAGE_KEY_SCHEDULE = 'fuerzalog_schedule_v1';
+const STORAGE_KEY_TODAY_EXERCISES_PREFIX = 'fuerzalog_today_ex_';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
+  const todayDate = getTodayDateString();
+  const currentDayOfWeek = getTodayDayOfWeek(todayDate);
+
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_SOUND);
     return saved !== null ? saved === 'true' : true;
@@ -55,12 +67,50 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_EXERCISES);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return sortExercisesAlphabetically(parsed);
+        }
       }
     } catch {
       // fallback
     }
-    return INITIAL_EXERCISES;
+    return sortExercisesAlphabetically(INITIAL_EXERCISES);
+  });
+
+  // Weekly Schedule
+  const [schedule, setSchedule] = useState<WeeklySchedule>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SCHEDULE);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && parsed.monday) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_WEEKLY_SCHEDULE;
+  });
+
+  // Today's active session exercises (defaults to today's schedule unless customized)
+  const [todayExerciseIds, setTodayExerciseIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_TODAY_EXERCISES_PREFIX + todayDate);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    const dayPlan = INITIAL_WEEKLY_SCHEDULE[currentDayOfWeek];
+    return dayPlan && Array.isArray(dayPlan.exercises) ? dayPlan.exercises.map((e) => e.exerciseId) : [];
+  });
+
+  // Preselected exercise and routine when navigating
+  const [selectedExerciseForLog, setSelectedExerciseForLog] = useState('');
+  const [selectedRoutineForLog, setSelectedRoutineForLog] = useState(() => {
+    const dayPlan = INITIAL_WEEKLY_SCHEDULE[currentDayOfWeek];
+    return dayPlan?.name || 'General';
   });
 
   // Workout Sets
@@ -88,9 +138,6 @@ export default function App() {
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isInstallAppModalOpen, setIsInstallAppModalOpen] = useState(false);
 
-  // Preselected exercise when navigating from Exercises tab
-  const [selectedExerciseForLog, setSelectedExerciseForLog] = useState('');
-
   // Persist sets
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_SETS, JSON.stringify(sets));
@@ -105,6 +152,29 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_SOUND, String(soundEnabled));
   }, [soundEnabled]);
+
+  // Persist weekly schedule
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedule));
+  }, [schedule]);
+
+  // Persist today's session exercises
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_TODAY_EXERCISES_PREFIX + todayDate, JSON.stringify(todayExerciseIds));
+  }, [todayExerciseIds, todayDate]);
+
+  const handleUpdateSchedule = (newSchedule: WeeklySchedule) => {
+    setSchedule(newSchedule);
+    const dayPlan = newSchedule[currentDayOfWeek];
+    if (dayPlan) {
+      setTodayExerciseIds(dayPlan.exercises.map((e) => e.exerciseId));
+      setSelectedRoutineForLog(dayPlan.name);
+    }
+  };
+
+  const handleUpdateTodayExerciseIds = (newIds: string[]) => {
+    setTodayExerciseIds(newIds);
+  };
 
   const handleSaveSet = (
     newSetData: Omit<WorkoutSet, 'id' | 'timestamp'>,
@@ -176,15 +246,18 @@ export default function App() {
   };
 
   const handleAddCustomExercise = (newEx: Exercise) => {
-    setExercises((prev) => [newEx, ...prev]);
+    setExercises((prev) => sortExercisesAlphabetically([newEx, ...prev]));
   };
 
   const handleDeleteCustomExercise = (id: string) => {
     setExercises((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleSelectExerciseForLog = (exerciseId: string) => {
+  const handleSelectExerciseForLog = (exerciseId: string, routineName?: string) => {
     setSelectedExerciseForLog(exerciseId);
+    if (routineName) {
+      setSelectedRoutineForLog(routineName);
+    }
     setActiveTab('home');
     setTimeout(() => {
       const el = document.getElementById('quick-log-card');
@@ -318,6 +391,14 @@ export default function App() {
             <HomeTab
               sets={sets}
               exercises={exercises}
+              schedule={schedule}
+              todayDate={todayDate}
+              todayExerciseIds={todayExerciseIds}
+              onUpdateTodayExerciseIds={handleUpdateTodayExerciseIds}
+              selectedExerciseForLog={selectedExerciseForLog}
+              selectedRoutineForLog={selectedRoutineForLog}
+              onSelectExerciseForLog={handleSelectExerciseForLog}
+              onOpenPlanner={() => setActiveTab('planner')}
               onSaveSet={handleSaveSet}
               onDeleteSet={handleDeleteSet}
               onViewHistory={() => setActiveTab('workouts')}
@@ -329,6 +410,16 @@ export default function App() {
               onLoadSampleData={handleLoadSampleData}
               onOpenExcelModal={() => setIsExcelModalOpen(true)}
               onOpenInstallModal={() => setIsInstallAppModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'planner' && (
+            <PlannerTab
+              schedule={schedule}
+              exercises={exercises}
+              onUpdateSchedule={handleUpdateSchedule}
+              onGoToTodayWorkout={() => setActiveTab('home')}
+              onOpenNewExerciseModal={() => setIsNewExerciseModalOpen(true)}
             />
           )}
 

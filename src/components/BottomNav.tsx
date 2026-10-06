@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Dumbbell, TrendingUp, BookOpen } from 'lucide-react';
+import { Home, Dumbbell, TrendingUp, BookOpen, Calendar } from 'lucide-react';
 import { TabType } from '../types';
 
 interface BottomNavProps {
@@ -15,6 +15,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 }) => {
   const tabs: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'home', label: 'Inicio', icon: Home },
+    { id: 'planner', label: 'Plan Semanal', icon: Calendar },
     { id: 'workouts', label: 'Entrenos', icon: Dumbbell },
     { id: 'progress', label: 'Progreso', icon: TrendingUp },
     { id: 'exercises', label: 'Ejercicios', icon: BookOpen },

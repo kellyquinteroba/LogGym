@@ -1,15 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { Exercise, WorkoutSet, SetStyle, DropStage } from '../types';
-import { getTodayDateString } from '../utils/calculations';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Exercise, WorkoutSet, SetStyle, DropStage, WeeklySchedule, DaySchedule } from '../types';
+import { getTodayDateString, sortExercisesAlphabetically } from '../utils/calculations';
 import { SET_STYLES, getSetStyleConfig } from '../utils/setStyles';
-import { Sparkles, Timer, Check, Plus, Layers, Flame, Zap, Link2, Info, Trash2, ArrowDown } from 'lucide-react';
+import {
+  Sparkles,
+  Timer,
+  Check,
+  Plus,
+  Layers,
+  Flame,
+  Zap,
+  Link2,
+  Info,
+  Trash2,
+  ArrowDown,
+  ChevronDown,
+  X,
+  Tag,
+  Dumbbell,
+} from 'lucide-react';
 
 interface QuickLogCardProps {
   exercises: Exercise[];
   recentSets: WorkoutSet[];
+  schedule?: WeeklySchedule;
   onSaveSet: (newSet: Omit<WorkoutSet, 'id' | 'timestamp'>, autoStartRest?: boolean) => void;
   onViewHistory: () => void;
   initialExerciseId?: string;
+  initialRoutine?: string;
   onOpenNewExerciseModal?: () => void;
 }
 
@@ -18,16 +36,24 @@ interface DropStageInput {
   reps: number | '';
 }
 
+const STORAGE_KEY_CUSTOM_ROUTINES = 'fuerzalog_custom_routines_v1';
+
 export const QuickLogCard: React.FC<QuickLogCardProps> = ({
   exercises,
   recentSets,
+  schedule,
   onSaveSet,
   onViewHistory,
   initialExerciseId = '',
+  initialRoutine = '',
   onOpenNewExerciseModal,
 }) => {
+  const sortedExercises = useMemo(() => {
+    return sortExercisesAlphabetically(exercises);
+  }, [exercises]);
+
   const [date, setDate] = useState(getTodayDateString());
-  const [routine, setRoutine] = useState('Torso A');
+  const [routine, setRoutine] = useState(initialRoutine || 'Torso A');
   const [exerciseId, setExerciseId] = useState(initialExerciseId || (exercises[0]?.id ?? ''));
   const [setNumber, setSetNumber] = useState(1);
   const [weightKg, setWeightKg] = useState<number | ''>(0);
@@ -41,18 +67,138 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
   const [autoStartTimer, setAutoStartTimer] = useState(true);
   const [justSaved, setJustSaved] = useState(false);
 
+  // Custom user-created routines
+  const [customRoutines, setCustomRoutines] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CUSTOM_ROUTINES);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  const [isRoutineDropdownOpen, setIsRoutineDropdownOpen] = useState(false);
+  const [isCreatingCustomRoutine, setIsCreatingCustomRoutine] = useState(false);
+  const [newRoutineInput, setNewRoutineInput] = useState('');
+  const routineContainerRef = useRef<HTMLDivElement>(null);
+
+  const saveCustomRoutine = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setCustomRoutines((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const updated = [...prev, trimmed];
+      try {
+        localStorage.setItem(STORAGE_KEY_CUSTOM_ROUTINES, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  const removeCustomRoutine = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCustomRoutines((prev) => {
+      const updated = prev.filter((r) => r !== name);
+      try {
+        localStorage.setItem(STORAGE_KEY_CUSTOM_ROUTINES, JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (routineContainerRef.current && !routineContainerRef.current.contains(e.target as Node)) {
+        setIsRoutineDropdownOpen(false);
+        setIsCreatingCustomRoutine(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Compute all available routines from schedule, custom creations, recent sets, and standard presets
+  const availableRoutines = useMemo(() => {
+    const list: string[] = [];
+
+    // 1. From schedule if available
+    if (schedule) {
+      (Object.values(schedule) as DaySchedule[]).forEach((dayPlan) => {
+        if (dayPlan.name && !dayPlan.isRestDay && !list.includes(dayPlan.name)) {
+          list.push(dayPlan.name);
+        }
+      });
+    }
+
+    // 2. Custom created routines by the user
+    customRoutines.forEach((r) => {
+      if (!list.includes(r)) list.push(r);
+    });
+
+    // 3. From recent sets history
+    recentSets.forEach((s) => {
+      if (s.routine && !list.includes(s.routine)) {
+        list.push(s.routine);
+      }
+    });
+
+    // 4. Default popular presets
+    const presets = [
+      'Torso A',
+      'Torso B',
+      'Pierna & Glúteo',
+      'Empuje (Push)',
+      'Tirón (Pull)',
+      'Espalda y Bíceps',
+      'Cuádriceps',
+      'Pecho & Tríceps',
+      'Hombros & Brazos',
+      'Cuerpo Completo',
+    ];
+    presets.forEach((p) => {
+      if (!list.includes(p)) list.push(p);
+    });
+
+    return list;
+  }, [schedule, customRoutines, recentSets]);
+
+  // Filtered routines based on what user typed (if any)
+  const filteredRoutines = useMemo(() => {
+    if (!routine.trim()) return availableRoutines;
+    const term = routine.toLowerCase().trim();
+    const matched = availableRoutines.filter((r) => r.toLowerCase().includes(term));
+    return matched.length > 0 ? matched : availableRoutines;
+  }, [availableRoutines, routine]);
+
   // Drop stages for dropset style (e.g. 100kg x 10, then drop 1: 80kg x 8, drop 2: 60kg x 5)
   const [dropStages, setDropStages] = useState<DropStageInput[]>([
     { weightKg: 80, reps: 8 },
     { weightKg: 60, reps: 5 },
   ]);
 
-  // Sync initial exercise if passed externally
+  // Sync initial exercise and routine if passed externally
   useEffect(() => {
     if (initialExerciseId) {
       setExerciseId(initialExerciseId);
     }
   }, [initialExerciseId]);
+
+  useEffect(() => {
+    if (initialRoutine) {
+      setRoutine(initialRoutine);
+    }
+  }, [initialRoutine]);
 
   // When exercise changes, calculate next set number and suggest previous weight
   useEffect(() => {
@@ -222,27 +368,206 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
           </div>
 
           {/* Día / Rutina */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Día / Rutina</label>
+          <div ref={routineContainerRef} className="relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Día / Rutina
+              </label>
+              <button
+                type="button"
+                id="btn-abrir-crear-rutina"
+                onClick={() => {
+                  setIsCreatingCustomRoutine(true);
+                  setIsRoutineDropdownOpen(true);
+                }}
+                className="text-[11px] font-semibold text-[#0e7490] dark:text-cyan-400 hover:underline flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ Crear opción propia</span>
+              </button>
+            </div>
+
             <div className="relative">
               <input
                 type="text"
                 id="input-rutina"
-                list="rutinas-list"
                 value={routine}
-                onChange={(e) => setRoutine(e.target.value)}
-                placeholder="Ej. Torso A, Pierna, Empuje..."
-                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm rounded-lg px-3 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                onChange={(e) => {
+                  setRoutine(e.target.value);
+                  if (!isRoutineDropdownOpen) setIsRoutineDropdownOpen(true);
+                }}
+                onClick={() => setIsRoutineDropdownOpen(true)}
+                onFocus={() => setIsRoutineDropdownOpen(true)}
+                placeholder="Selecciona o escribe el día/rutina..."
+                className="w-full bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-medium rounded-lg pl-3 pr-10 py-2 border-0 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
-              <datalist id="rutinas-list">
-                <option value="Torso A" />
-                <option value="Torso B" />
-                <option value="Pierna & Glúteo" />
-                <option value="Empuje (Push)" />
-                <option value="Tirón (Pull)" />
-                <option value="Fullbody" />
-              </datalist>
+              <button
+                type="button"
+                id="btn-toggle-rutinas-dropdown"
+                onClick={() => setIsRoutineDropdownOpen((prev) => !prev)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Desplegar lista de opciones"
+              >
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isRoutineDropdownOpen ? 'rotate-180 text-[#0e7490] dark:text-cyan-400' : ''
+                  }`}
+                />
+              </button>
             </div>
+
+            {/* Dropdown flotante con las opciones */}
+            {isRoutineDropdownOpen && (
+              <div
+                id="rutinas-dropdown-list"
+                className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-100"
+              >
+                {/* Formulario rápido para crear opción propia */}
+                {isCreatingCustomRoutine ? (
+                  <div className="p-2.5 bg-slate-50 dark:bg-slate-800/90 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 mb-1.5 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      Crear nueva opción propia:
+                    </p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newRoutineInput}
+                        onChange={(e) => setNewRoutineInput(e.target.value)}
+                        placeholder="Ej. Glúteos & Femoral, Pecho..."
+                        className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#0e7490]"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (newRoutineInput.trim()) {
+                              const val = newRoutineInput.trim();
+                              saveCustomRoutine(val);
+                              setRoutine(val);
+                              setNewRoutineInput('');
+                              setIsCreatingCustomRoutine(false);
+                              setIsRoutineDropdownOpen(false);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newRoutineInput.trim()) {
+                            const val = newRoutineInput.trim();
+                            saveCustomRoutine(val);
+                            setRoutine(val);
+                            setNewRoutineInput('');
+                            setIsCreatingCustomRoutine(false);
+                            setIsRoutineDropdownOpen(false);
+                          }
+                        }}
+                        className="bg-[#0e7490] hover:bg-[#0891b2] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0 transition-colors shadow-xs"
+                      >
+                        Crear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingCustomRoutine(false);
+                          setNewRoutineInput('');
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors"
+                        title="Cancelar"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCustomRoutine(true)}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-[#0e7490] dark:text-cyan-400 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Plus className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400" />
+                      Crear nueva opción propia...
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal">Personalizada</span>
+                  </button>
+                )}
+
+                {/* Si el usuario escribió un texto en el input que aún no existe en la lista */}
+                {routine.trim() &&
+                  !availableRoutines.some(
+                    (r) => r.toLowerCase() === routine.trim().toLowerCase()
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = routine.trim();
+                        saveCustomRoutine(val);
+                        setIsRoutineDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-teal-800 dark:text-cyan-300 bg-teal-50/70 dark:bg-cyan-950/40 hover:bg-teal-100/70 dark:hover:bg-cyan-900/50 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-cyan-400 shrink-0" />
+                      <span>
+                        Usar "<strong>{routine.trim()}</strong>" como nueva opción propia
+                      </span>
+                    </button>
+                  )}
+
+                {/* Lista desplazable con todas las opciones disponibles */}
+                <div className="max-h-52 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {filteredRoutines.length === 0 ? (
+                    <div className="px-3 py-3 text-center text-xs text-slate-400">
+                      No se encontraron opciones coincidentes.
+                    </div>
+                  ) : (
+                    filteredRoutines.map((item) => {
+                      const isSelected = item.toLowerCase() === routine.trim().toLowerCase();
+                      const isCustom = customRoutines.includes(item);
+                      return (
+                        <div
+                          key={item}
+                          onClick={() => {
+                            setRoutine(item);
+                            setIsRoutineDropdownOpen(false);
+                          }}
+                          className={`w-full px-3 py-2 text-xs flex items-center justify-between cursor-pointer transition-colors ${
+                            isSelected
+                              ? 'bg-teal-50/90 dark:bg-cyan-950/60 font-bold text-[#0e7490] dark:text-cyan-300'
+                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="truncate">{item}</span>
+                            {isCustom && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 font-semibold shrink-0">
+                                Propia
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-2">
+                            {isCustom && (
+                              <button
+                                type="button"
+                                onClick={(e) => removeCustomRoutine(item, e)}
+                                title="Eliminar opción propia"
+                                className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400 shrink-0" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Ejercicio */}
@@ -268,7 +593,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               <option value="" disabled>
                 Selecciona un ejercicio
               </option>
-              {exercises.map((ex) => (
+              {sortedExercises.map((ex) => (
                 <option key={ex.id} value={ex.id}>
                   {ex.name} ({ex.category})
                 </option>

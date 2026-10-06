@@ -1,4 +1,14 @@
-import { WorkoutSet } from '../types';
+import { WorkoutSet, Exercise } from '../types';
+
+/**
+ * Sorts exercises alphabetically by their name (Spanish locale-aware, case-insensitive, accents-aware).
+ * Both predefined exercises and user-created custom exercises are sorted together cleanly from A to Z.
+ */
+export function sortExercisesAlphabetically(exerciseList: Exercise[]): Exercise[] {
+  return [...exerciseList].sort((a, b) =>
+    a.name.localeCompare(b.name, 'es', { sensitivity: 'base', numeric: true })
+  );
+}
 
 export function calculateEstimated1RM(weightKg: number, reps: number): number {
   if (reps <= 0 || weightKg <= 0) return 0;

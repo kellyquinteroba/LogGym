@@ -7,6 +7,7 @@ import {
   calculateEstimated1RM,
   calculateSetVolume,
   formatDisplayDate,
+  sortExercisesAlphabetically,
 } from '../utils/calculations';
 import {
   AreaChart,
@@ -54,6 +55,11 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
   const peakLoad = calculatePeakLoad(sets);
   const totalSessions = countUniqueSessions(sets);
   const totalSetsCount = sets.length;
+
+  // Sorted exercises alphabetically
+  const sortedExercises = useMemo(() => {
+    return sortExercisesAlphabetically(exercises);
+  }, [exercises]);
 
   // Filter sets if a specific exercise is picked for detailed tracking
   const targetSets = useMemo(() => {
@@ -268,7 +274,7 @@ export const ProgressTab: React.FC<ProgressTabProps> = ({
             className="w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs rounded-lg px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-[#0e7490] dark:focus:ring-cyan-500 focus:outline-none font-medium"
           >
             <option value="all">Todos los ejercicios combinados</option>
-            {exercises.map((ex) => (
+            {sortedExercises.map((ex) => (
               <option key={ex.id} value={ex.id}>
                 {ex.name}
               </option>

@@ -36,6 +36,32 @@ export interface DropStage {
   reps: number;
 }
 
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface PlannedExercise {
+  exerciseId: string;
+  targetSets?: number;
+  targetReps?: string;
+  notes?: string;
+}
+
+export interface DaySchedule {
+  day: DayOfWeek;
+  name: string; // e.g. "Espalda y Bíceps", "Cuádriceps"
+  muscleGroups?: string;
+  exercises: PlannedExercise[];
+  isRestDay?: boolean;
+}
+
+export type WeeklySchedule = Record<DayOfWeek, DaySchedule>;
+
 export interface WorkoutSet {
   id: string;
   date: string; // YYYY-MM-DD
@@ -55,4 +81,4 @@ export interface WorkoutSet {
   dropStages?: DropStage[]; // Array of weight/reps stages within a single drop set
 }
 
-export type TabType = 'home' | 'workouts' | 'progress' | 'exercises';
+export type TabType = 'home' | 'planner' | 'workouts' | 'progress' | 'exercises';

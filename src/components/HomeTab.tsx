@@ -1,7 +1,8 @@
 import React from 'react';
-import { WorkoutSet, Exercise } from '../types';
+import { WorkoutSet, Exercise, WeeklySchedule } from '../types';
 import { QuickLogCard } from './QuickLogCard';
-import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight } from 'lucide-react';
+import { TodayWorkoutCard } from './TodayWorkoutCard';
+import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight, Calendar } from 'lucide-react';
 import {
   calculateTotalVolume,
   calculateAverageRPE,
@@ -14,6 +15,14 @@ import { getSetStyleConfig } from '../utils/setStyles';
 interface HomeTabProps {
   sets: WorkoutSet[];
   exercises: Exercise[];
+  schedule: WeeklySchedule;
+  todayDate: string;
+  todayExerciseIds: string[];
+  onUpdateTodayExerciseIds: (ids: string[]) => void;
+  selectedExerciseForLog: string;
+  selectedRoutineForLog: string;
+  onSelectExerciseForLog: (exerciseId: string, routineName?: string) => void;
+  onOpenPlanner: () => void;
   onSaveSet: (newSet: Omit<WorkoutSet, 'id' | 'timestamp'>, autoStartRest?: boolean) => void;
   onDeleteSet: (id: string) => void;
   onViewHistory: () => void;
@@ -27,6 +36,14 @@ interface HomeTabProps {
 export const HomeTab: React.FC<HomeTabProps> = ({
   sets,
   exercises,
+  schedule,
+  todayDate,
+  todayExerciseIds,
+  onUpdateTodayExerciseIds,
+  selectedExerciseForLog,
+  selectedRoutineForLog,
+  onSelectExerciseForLog,
+  onOpenPlanner,
   onSaveSet,
   onDeleteSet,
   onViewHistory,
@@ -144,12 +161,28 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         </div>
       )}
 
+      {/* Bloque de Entrenamiento de Hoy (Programado Automáticamente) */}
+      <TodayWorkoutCard
+        schedule={schedule}
+        exercises={exercises}
+        sets={sets}
+        todayDate={todayDate}
+        todayExerciseIds={todayExerciseIds}
+        onUpdateTodayExerciseIds={onUpdateTodayExerciseIds}
+        onSelectExerciseForLog={onSelectExerciseForLog}
+        onOpenPlanner={onOpenPlanner}
+        onOpenNewExerciseModal={onOpenNewExerciseModal}
+      />
+
       {/* Quick Log Form (Matches Screenshot 1 & 2) */}
       <QuickLogCard
         exercises={exercises}
         recentSets={sets}
+        schedule={schedule}
         onSaveSet={onSaveSet}
         onViewHistory={onViewHistory}
+        initialExerciseId={selectedExerciseForLog}
+        initialRoutine={selectedRoutineForLog}
         onOpenNewExerciseModal={onOpenNewExerciseModal}
       />
 
