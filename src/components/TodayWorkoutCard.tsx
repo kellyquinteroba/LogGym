@@ -119,6 +119,15 @@ export const TodayWorkoutCard: React.FC<TodayWorkoutCardProps> = ({
               <h2 className="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">
                 {scheduledDay.name || 'Entrenamiento del día'}
               </h2>
+              {schedule.mesocycle && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-cyan-200 mt-0.5">
+                  <span className="bg-white/15 px-1.5 py-0.2 rounded">
+                    🎯 {schedule.mesocycle.name}
+                  </span>
+                  <span>•</span>
+                  <span>Semana {schedule.mesocycle.currentWeek} de {schedule.mesocycle.totalWeeks}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -262,11 +271,20 @@ export const TodayWorkoutCard: React.FC<TodayWorkoutCardProps> = ({
                   const exSetsToday = todaySets.filter((s) => s.exerciseId === exId);
                   const isCompleted = exSetsToday.length > 0;
 
+                  // Mesocycle targets for this exercise
+                  const planned = scheduledDay?.exercises?.find((p) => p.exerciseId === exId);
+                  const targetSets = planned?.targetSets || schedule.mesocycle?.defaultSets || 4;
+                  const targetReps = planned?.targetReps || schedule.mesocycle?.defaultReps || '8-12';
+                  const targetRir = planned?.targetRir || schedule.mesocycle?.targetRir;
+                  const isGoalReached = exSetsToday.length >= targetSets;
+
                   return (
                     <div
                       key={exId}
                       className={`p-3 rounded-xl border transition-all ${
-                        isCompleted
+                        isGoalReached
+                          ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/40'
+                          : isCompleted
                           ? 'bg-teal-50/40 dark:bg-cyan-950/20 border-teal-200/80 dark:border-cyan-900/40'
                           : 'bg-slate-50/80 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/60'
                       }`}
@@ -282,15 +300,25 @@ export const TodayWorkoutCard: React.FC<TodayWorkoutCardProps> = ({
                               <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
                                 {ex.name}
                               </h4>
-                              {isCompleted && (
-                                <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-teal-800 dark:text-cyan-300 bg-teal-100/90 dark:bg-cyan-950 px-1.5 py-0.2 rounded-md">
-                                  <Check className="w-3 h-3" /> {exSetsToday.length} series
+                              {isGoalReached ? (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950 px-1.5 py-0.2 rounded-md">
+                                  <Check className="w-3 h-3" /> Meta {targetSets} series lista
                                 </span>
-                              )}
+                              ) : isCompleted ? (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-extrabold text-teal-800 dark:text-cyan-300 bg-teal-100/90 dark:bg-cyan-950 px-1.5 py-0.2 rounded-md">
+                                  {exSetsToday.length} de {targetSets} series
+                                </span>
+                              ) : null}
                             </div>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                              {ex.category}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                {ex.category}
+                              </span>
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px]">•</span>
+                              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
+                                🎯 {targetSets} series × {targetReps} reps {targetRir ? `(${targetRir})` : ''}
+                              </span>
+                            </div>
                           </div>
                         </div>
 

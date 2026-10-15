@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TabType, WorkoutSet, Exercise, WeeklySchedule } from './types';
+import { TabType, WorkoutSet, Exercise, WeeklySchedule, CardioWorkout } from './types';
 import { INITIAL_EXERCISES } from './data/initialExercises';
 import {
   generateSampleSets,
@@ -8,17 +8,19 @@ import {
   sortExercisesAlphabetically,
 } from './utils/calculations';
 import { INITIAL_WEEKLY_SCHEDULE, getTodayDayOfWeek } from './utils/schedule';
+import { getSampleCardioWorkouts } from './utils/cardioCalculations';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './components/HomeTab';
 import { PlannerTab } from './components/PlannerTab';
 import { WorkoutsTab } from './components/WorkoutsTab';
+import { CardioTab } from './components/CardioTab';
 import { ProgressTab } from './components/ProgressTab';
 import { ExercisesTab } from './components/ExercisesTab';
 import { RestTimer } from './components/RestTimer';
 import { NewExerciseModal } from './components/NewExerciseModal';
 import { ExcelModal } from './components/ExcelModal';
 import { InstallAppModal } from './components/InstallAppModal';
-import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun } from 'lucide-react';
+import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun, Activity } from 'lucide-react';
 
 const STORAGE_KEY_SETS = 'fuerzalog_sets_v1';
 const STORAGE_KEY_EXERCISES = 'fuerzalog_exercises_v1';
@@ -26,6 +28,8 @@ const STORAGE_KEY_SOUND = 'fuerzalog_sound_v1';
 const STORAGE_KEY_THEME = 'fuerzalog_theme_v1';
 const STORAGE_KEY_SCHEDULE = 'fuerzalog_schedule_v1';
 const STORAGE_KEY_TODAY_EXERCISES_PREFIX = 'fuerzalog_today_ex_';
+const STORAGE_KEY_CARDIO = 'loggym_cardio_workouts_v1';
+const STORAGE_KEY_ACTIVE_TIMER = 'loggym_active_rest_timer_v2';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
@@ -127,9 +131,44 @@ export default function App() {
     return [];
   });
 
-  // Rest Timer State
-  const [isRestTimerOpen, setIsRestTimerOpen] = useState(false);
+  // Rest Timer State (check if there was a running timer in background)
+  const [isRestTimerOpen, setIsRestTimerOpen] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.isActive) return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
   const [restTimerSeconds, setRestTimerSeconds] = useState(90);
+  const [restTimerKey, setRestTimerKey] = useState(0);
+
+  // Cardio Workouts (Stored safely in LocalStorage)
+  const [cardioWorkouts, setCardioWorkouts] = useState<CardioWorkout[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CARDIO);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return getSampleCardioWorkouts();
+  });
+
+  // Persist cardio workouts independently so strength logs are never touched or lost
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_CARDIO, JSON.stringify(cardioWorkouts));
+    } catch {
+      // ignore
+    }
+  }, [cardioWorkouts]);
 
   // New Exercise Modal
   const [isNewExerciseModalOpen, setIsNewExerciseModalOpen] = useState(false);
@@ -208,8 +247,10 @@ export default function App() {
     setSets((prev) => sortSetsChronological([newSet, ...prev], 'desc'));
 
     if (autoStartRest && newSetData.restSeconds > 0) {
-      setRestTimerSeconds(newSetData.restSeconds);
+      const safeRest = Math.min(180, Math.max(1, newSetData.restSeconds));
+      setRestTimerSeconds(safeRest);
       setIsRestTimerOpen(true);
+      setRestTimerKey((prev) => prev + 1);
     }
   };
 
@@ -282,6 +323,24 @@ export default function App() {
     } else {
       setSets((prev) => sortSetsChronological([...newSets, ...prev], 'desc'));
     }
+  };
+
+  // Cardio Handlers
+  const handleSaveCardio = (newCardio: Omit<CardioWorkout, 'id' | 'timestamp'>) => {
+    const workout: CardioWorkout = {
+      ...newCardio,
+      id: `cardio-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: Date.now(),
+    };
+    setCardioWorkouts((prev) => [workout, ...prev]);
+  };
+
+  const handleDeleteCardio = (id: string) => {
+    setCardioWorkouts((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  const handleLoadSampleCardio = () => {
+    setCardioWorkouts(getSampleCardioWorkouts());
   };
 
   return (
@@ -410,6 +469,7 @@ export default function App() {
               onLoadSampleData={handleLoadSampleData}
               onOpenExcelModal={() => setIsExcelModalOpen(true)}
               onOpenInstallModal={() => setIsInstallAppModalOpen(true)}
+              onOpenCardio={() => setActiveTab('cardio')}
             />
           )}
 
@@ -444,6 +504,15 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'cardio' && (
+            <CardioTab
+              cardioWorkouts={cardioWorkouts}
+              onSaveCardio={handleSaveCardio}
+              onDeleteCardio={handleDeleteCardio}
+              onLoadSampleCardio={handleLoadSampleCardio}
+            />
+          )}
+
           {activeTab === 'progress' && (
             <ProgressTab
               sets={sets}
@@ -467,6 +536,7 @@ export default function App() {
 
         {/* Floating Rest Timer */}
         <RestTimer
+          key={restTimerKey}
           initialSeconds={restTimerSeconds}
           isOpen={isRestTimerOpen}
           onClose={() => setIsRestTimerOpen(false)}

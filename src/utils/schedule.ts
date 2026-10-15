@@ -1,4 +1,117 @@
-import { DayOfWeek, DaySchedule, WeeklySchedule, Exercise } from '../types';
+import { DayOfWeek, DaySchedule, WeeklySchedule, Exercise, MesocycleType, MesocycleConfig } from '../types';
+
+export interface MesocycleProfile {
+  type: MesocycleType;
+  name: string;
+  shortLabel: string;
+  description: string;
+  defaultSets: number;
+  defaultReps: string;
+  targetRir: string;
+  defaultWeeks: number;
+  badgeColor: string;
+  emoji: string;
+  tips: string;
+}
+
+export const MESOCYCLE_PROFILES: MesocycleProfile[] = [
+  {
+    type: 'hipertrofia',
+    name: 'Hipertrofia (Volumen y Crecimiento)',
+    shortLabel: 'Hipertrofia',
+    description: 'Enfoque en ganancia de masa muscular mediante volumen moderado-alto y rango de 8 a 12 repeticiones.',
+    defaultSets: 4,
+    defaultReps: '8-12',
+    targetRir: 'RIR 1-2',
+    defaultWeeks: 4,
+    badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+    emoji: '💪',
+    tips: 'Asegura tensión mecánica continua y mantén 1-2 repeticiones en recámara (RIR 1-2) en series efectivas.',
+  },
+  {
+    type: 'fuerza',
+    name: 'Fuerza Máxima (Intensificación)',
+    shortLabel: 'Fuerza',
+    description: 'Enfoque en mover cargas altas (>80-85% 1RM), series pesadas de 3 a 6 repeticiones y descansos completos.',
+    defaultSets: 4,
+    defaultReps: '3-6',
+    targetRir: 'RIR 1-2',
+    defaultWeeks: 4,
+    badgeColor: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+    emoji: '⚡',
+    tips: 'Descansos completos de 2 a 3 minutos entre series para recuperar los depósitos de fosfocreatina.',
+  },
+  {
+    type: 'fuerza_hipertrofia',
+    name: 'Fuerza - Hipertrofia (Híbrido)',
+    shortLabel: 'Fuerza-Hipertrofia',
+    description: 'Equilibrio perfecto: progresión de fuerza en básicos multiarticulares y volumen en accesorios.',
+    defaultSets: 4,
+    defaultReps: '6-10',
+    targetRir: 'RIR 2',
+    defaultWeeks: 5,
+    badgeColor: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800',
+    emoji: '🎯',
+    tips: 'Ideal para progresar en cargas principales sin sacrificar hipertrofia ni congestión muscular.',
+  },
+  {
+    type: 'resistencia',
+    name: 'Resistencia Muscular & Bombeo',
+    shortLabel: 'Resistencia',
+    description: 'Mayor densidad metabólica, altas repeticiones (12 a 15+) y descansos breves para tolerancia al lactato.',
+    defaultSets: 3,
+    defaultReps: '12-15',
+    targetRir: 'RIR 1-3',
+    defaultWeeks: 3,
+    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+    emoji: '🔥',
+    tips: 'Descansos más cortos (45-60s) con técnica muy controlada y gran bombeo muscular.',
+  },
+  {
+    type: 'descarga',
+    name: 'Descarga / Deload Activo',
+    shortLabel: 'Descarga',
+    description: 'Semana de descompresión para reducir la fatiga central y articular reduciendo el volumen a la mitad.',
+    defaultSets: 2,
+    defaultReps: '6-10',
+    targetRir: 'RIR 3-4',
+    defaultWeeks: 1,
+    badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+    emoji: '🌿',
+    tips: 'Mantén los pesos habituales pero reduce a la mitad el número de series. Entrena lejos del fallo.',
+  },
+  {
+    type: 'personalizado',
+    name: 'Mesociclo Personalizado',
+    shortLabel: 'Personalizado',
+    description: 'Diseño propio adaptado a tus necesidades específicas de series, repeticiones y microciclos.',
+    defaultSets: 4,
+    defaultReps: '8-12',
+    targetRir: 'Personalizado',
+    defaultWeeks: 4,
+    badgeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700',
+    emoji: '✨',
+    tips: 'Ajusta las series y repeticiones objetivo ejercicio por ejercicio según tu planificación.',
+  },
+];
+
+export const DEFAULT_MESOCYCLE: MesocycleConfig = {
+  name: 'Hipertrofia (Volumen y Crecimiento)',
+  type: 'hipertrofia',
+  currentWeek: 1,
+  totalWeeks: 4,
+  defaultSets: 4,
+  defaultReps: '8-12',
+  targetRir: 'RIR 1-2',
+  focusNotes: 'Sobrecarga progresiva y acumulación de volumen semanal.',
+};
+
+export function getMesocycleConfig(schedule?: WeeklySchedule): MesocycleConfig {
+  if (schedule && schedule.mesocycle) {
+    return schedule.mesocycle;
+  }
+  return DEFAULT_MESOCYCLE;
+}
 
 export const DAY_KEYS: DayOfWeek[] = [
   'monday',
@@ -128,6 +241,7 @@ export const INITIAL_WEEKLY_SCHEDULE: WeeklySchedule = {
     isRestDay: true,
     exercises: [],
   },
+  mesocycle: DEFAULT_MESOCYCLE,
 };
 
 export interface SchedulePreset {

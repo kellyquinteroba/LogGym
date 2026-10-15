@@ -2,7 +2,7 @@ import React from 'react';
 import { WorkoutSet, Exercise, WeeklySchedule } from '../types';
 import { QuickLogCard } from './QuickLogCard';
 import { TodayWorkoutCard } from './TodayWorkoutCard';
-import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight, Calendar } from 'lucide-react';
+import { History, Plus, Trash2, Clock, Sparkles, FileSpreadsheet, Smartphone, ArrowRight, Calendar, Activity } from 'lucide-react';
 import {
   calculateTotalVolume,
   calculateAverageRPE,
@@ -31,6 +31,7 @@ interface HomeTabProps {
   onLoadSampleData: () => void;
   onOpenExcelModal?: () => void;
   onOpenInstallModal?: () => void;
+  onOpenCardio?: () => void;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -52,6 +53,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onLoadSampleData,
   onOpenExcelModal,
   onOpenInstallModal,
+  onOpenCardio,
 }) => {
   // Today's metrics (or all recent if today is empty, to give immediate feedback)
   const totalVolume = calculateTotalVolume(sets);
@@ -159,6 +161,34 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </button>
           )}
         </div>
+      )}
+
+      {/* Quick Cardio Prompt Banner */}
+      {onOpenCardio && (
+        <button
+          type="button"
+          onClick={onOpenCardio}
+          className="w-full mt-2 mb-1 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 dark:from-emerald-950/40 dark:to-teal-950/40 border border-emerald-500/30 rounded-2xl p-3 flex items-center justify-between text-left transition-all hover:border-emerald-500 active:scale-[0.99] group shadow-sm"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>¿Hiciste Cardio o Running hoy?</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">Nuevo</span>
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Registra cinta, calle o pista con cálculo de ritmo y RPE
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs shrink-0 pl-2">
+            <span className="hidden sm:inline">Registrar</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </button>
       )}
 
       {/* Bloque de Entrenamiento de Hoy (Programado Automáticamente) */}

@@ -18,7 +18,10 @@ import {
   X,
   Tag,
   Dumbbell,
+  Target,
+  Minus,
 } from 'lucide-react';
+import { unlockAudio } from '../utils/audio';
 
 interface QuickLogCardProps {
   exercises: Exercise[];
@@ -135,7 +138,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
     // 1. From schedule if available
     if (schedule) {
       (Object.values(schedule) as DaySchedule[]).forEach((dayPlan) => {
-        if (dayPlan.name && !dayPlan.isRestDay && !list.includes(dayPlan.name)) {
+        if (dayPlan && typeof dayPlan === 'object' && 'exercises' in dayPlan && dayPlan.name && !dayPlan.isRestDay && !list.includes(dayPlan.name)) {
           list.push(dayPlan.name);
         }
       });
@@ -180,6 +183,27 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
     const matched = availableRoutines.filter((r) => r.toLowerCase().includes(term));
     return matched.length > 0 ? matched : availableRoutines;
   }, [availableRoutines, routine]);
+
+  // Find planned exercise target in schedule (if any)
+  const plannedExerciseTarget = useMemo(() => {
+    if (!schedule || !exerciseId) return null;
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+    for (const dk of days) {
+      const day = schedule[dk];
+      if (day && day.exercises) {
+        const found = day.exercises.find((pe) => pe.exerciseId === exerciseId);
+        if (found) {
+          return {
+            targetSets: found.targetSets || schedule.mesocycle?.defaultSets || 4,
+            targetReps: found.targetReps || schedule.mesocycle?.defaultReps || '8-12',
+            targetRir: found.targetRir || schedule.mesocycle?.targetRir,
+            dayName: day.name,
+          };
+        }
+      }
+    }
+    return null;
+  }, [schedule, exerciseId]);
 
   // Drop stages for dropset style (e.g. 100kg x 10, then drop 1: 80kg x 8, drop 2: 60kg x 5)
   const [dropStages, setDropStages] = useState<DropStageInput[]>([
@@ -236,6 +260,8 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
       }
       setSetNumber(1);
     }
+    // Clean notes when switching to a different exercise
+    setNotes('');
   }, [exerciseId, date, recentSets]);
 
   const selectedExercise = exercises.find((e) => e.id === exerciseId);
@@ -282,9 +308,13 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
     e.preventDefault();
     if (!selectedExercise) return;
 
+    unlockAudio();
+
     const parsedWeight = typeof weightKg === 'number' ? weightKg : parseFloat(String(weightKg)) || 0;
     const parsedReps = typeof reps === 'number' ? reps : parseInt(String(reps), 10) || 1;
     const parsedRpe = typeof rpe === 'number' ? rpe : parseFloat(String(rpe)) || 7;
+    // Maximum rest time is 3 minutes (180 seconds)
+    const parsedRestSeconds = Math.min(180, Math.max(0, Number(restSeconds) || 90));
 
     const cleanedDropStages: DropStage[] | undefined =
       setStyle === 'dropset' && dropStages.length > 0
@@ -306,7 +336,7 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
         weightKg: parsedWeight,
         reps: parsedReps,
         rpe: parsedRpe,
-        restSeconds: Number(restSeconds) || 90,
+        restSeconds: parsedRestSeconds,
         notes: notes.trim(),
         setStyle,
         customStyleName: setStyle === 'custom' ? customStyleName.trim() : undefined,
@@ -319,8 +349,10 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
       autoStartTimer
     );
 
-    // Prepare for next set (Serie 2, Serie 3, etc.) - preserves dropset config so user can repeat drops smoothly!
+    // Prepare for next set (Serie 2, Serie 3, etc.)
     setSetNumber((prev) => prev + 1);
+    // Clear notes field so it does not persist into the next set
+    setNotes('');
     setJustSaved(true);
     setTimeout(() => setJustSaved(false), 2200);
   };
@@ -603,6 +635,15 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 italic line-clamp-1">
                 💡 {selectedExercise.cues}
               </p>
+            )}
+            {plannedExerciseTarget && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-teal-800 dark:text-cyan-300 bg-teal-50 dark:bg-cyan-950/40 border border-teal-200 dark:border-cyan-800/60 rounded-lg px-2.5 py-1">
+                <Target className="w-3.5 h-3.5 shrink-0 text-[#0e7490] dark:text-cyan-400" />
+                <span>
+                  🎯 Objetivo del mesociclo ({plannedExerciseTarget.dayName}): {plannedExerciseTarget.targetSets} series × {plannedExerciseTarget.targetReps} reps
+                  {plannedExerciseTarget.targetRir ? ` (${plannedExerciseTarget.targetRir})` : ''}
+                </span>
+              </div>
             )}
           </div>
 
@@ -958,28 +999,71 @@ export const QuickLogCard: React.FC<QuickLogCardProps> = ({
 
           {/* Descanso entre series */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Timer className="w-3.5 h-3.5 text-[#0e7490] dark:text-cyan-400" />
-                Descanso posterior
+                <span>Descanso posterior</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
+                  (Máx. 3 min)
+                </span>
               </label>
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                {restSeconds >= 60 ? `${Math.floor(restSeconds / 60)}m ${restSeconds % 60 ? `${restSeconds % 60}s` : ''}` : `${restSeconds}s`}
-              </span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setRestSeconds((prev) => Math.max(15, prev - 15))}
+                    className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                    title="Restar 15s"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-xs font-bold text-[#0e7490] dark:text-cyan-400 font-mono px-1">
+                    {restSeconds >= 60
+                      ? `${Math.floor(restSeconds / 60)}m${restSeconds % 60 ? ` ${restSeconds % 60}s` : ''}`
+                      : `${restSeconds}s`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRestSeconds((prev) => Math.min(180, prev + 15))}
+                    className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-white rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                    title="Sumar 15s (máx 3 min)"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+                {restSeconds >= 180 && (
+                  <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                    Máx 3m
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              {[45, 60, 90, 120].map((sec) => (
+
+            {/* Selector de descanso: 45s, 1m, 1:30, 2m y 3m (tiempo máx) */}
+            <div className="grid grid-cols-5 gap-1.5">
+              {[
+                { sec: 45, label: '45s' },
+                { sec: 60, label: '1 min' },
+                { sec: 90, label: '1:30' },
+                { sec: 120, label: '2 min' },
+                { sec: 180, label: '3 min' },
+              ].map(({ sec, label }) => (
                 <button
                   type="button"
                   key={sec}
                   onClick={() => setRestSeconds(sec)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all ${
+                  className={`py-1.5 px-1 rounded-lg text-xs font-semibold border transition-all text-center ${
                     restSeconds === sec
-                      ? 'bg-[#0e7490]/10 dark:bg-cyan-950/60 border-[#0e7490] dark:border-cyan-500 text-[#0e7490] dark:text-cyan-400 font-semibold'
+                      ? 'bg-[#0e7490] text-white border-[#0e7490] shadow-2xs'
                       : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {sec < 60 ? `${sec}s` : `${sec / 60}m`}
+                  {label}
+                  {sec === 180 && (
+                    <span className="block text-[8px] opacity-80 uppercase leading-none font-extrabold">
+                      Máx
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
