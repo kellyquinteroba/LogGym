@@ -408,10 +408,12 @@ export default function App() {
   };
 
   const handleStorageModeChanged = (newMode: StorageMode, provider: CloudProvider) => {
+    const updated = getStoragePreference();
     setStoragePref({
+      ...updated,
       mode: newMode,
-      hasBeenPrompted: true,
       provider,
+      hasBeenPrompted: true,
     });
     setStorageConfirmBannerDismissed(true);
     if (shouldShowChangelog()) {
@@ -565,31 +567,63 @@ export default function App() {
         {/* Storage Preference Verification & Choice Banner */}
         {!storageConfirmBannerDismissed && storagePref?.mode && (
           <div className="mx-3.5 mt-2.5 p-3 bg-gradient-to-r from-teal-50 via-teal-50/70 to-cyan-50 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border border-teal-200/90 dark:border-teal-800/70 rounded-2xl shadow-sm text-xs text-slate-700 dark:text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in duration-200">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 overflow-hidden">
               <span className="p-2 rounded-xl bg-teal-600 dark:bg-cyan-500 text-white shadow-sm shrink-0">
                 {storagePref.mode === 'cloud' ? <Cloud className="w-4 h-4" /> : <HardDrive className="w-4 h-4" />}
               </span>
-              <div>
-                <p className="font-bold text-slate-900 dark:text-white leading-tight">
-                  Guardando en:{' '}
-                  <span className="text-teal-700 dark:text-cyan-400">
-                    {storagePref.mode === 'cloud' ? '☁️ Mi Nube Personal' : '📱 Este Teléfono (Local)'}
-                  </span>
+              <div className="truncate">
+                <p className="font-bold text-slate-900 dark:text-white leading-tight truncate">
+                  {storagePref.mode === 'cloud' ? (
+                    storagePref.accountEmail ? (
+                      <span>
+                        ☁️ Google Drive:{' '}
+                        <span className="text-teal-700 dark:text-cyan-400 font-normal">
+                          {storagePref.accountEmail}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 dark:text-amber-400">
+                        ☁️ Nube elegida: ¡Vincula tu cuenta!
+                      </span>
+                    )
+                  ) : (
+                    <span>
+                      Guardando en:{' '}
+                      <span className="text-teal-700 dark:text-cyan-400">📱 Este Teléfono (Local)</span>
+                    </span>
+                  )}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                  ¿Prefieres seguir guardándolos aquí o cambiar a la nube?
+                  {storagePref.mode === 'cloud'
+                    ? storagePref.accountEmail
+                      ? 'Carpeta «LogGym» sincronizada en tu nube personal'
+                      : 'Toca en "Vincular" para conectar tu Google Drive y crear tu carpeta LogGym'
+                    : '¿Prefieres seguir guardándolos aquí o subir a tu nube?'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                onClick={() => setStorageConfirmBannerDismissed(true)}
-                className="px-2.5 py-1.5 rounded-lg bg-teal-600 dark:bg-cyan-500 text-white text-[11px] font-bold hover:bg-teal-700 dark:hover:bg-cyan-400 transition-colors shadow-sm shrink-0"
-              >
-                Seguir en {storagePref.mode === 'cloud' ? 'Nube' : 'Local'}
-              </button>
+            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end shrink-0">
+              {storagePref.mode === 'cloud' && !storagePref.accountEmail ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStorageInitialPrompt(false);
+                    setIsStorageModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-teal-600 dark:bg-cyan-500 text-white text-[11px] font-bold hover:bg-teal-700 dark:hover:bg-cyan-400 transition-colors shadow-sm"
+                >
+                  Vincular Google Drive
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setStorageConfirmBannerDismissed(true)}
+                  className="px-2.5 py-1.5 rounded-lg bg-teal-600 dark:bg-cyan-500 text-white text-[11px] font-bold hover:bg-teal-700 dark:hover:bg-cyan-400 transition-colors shadow-sm shrink-0"
+                >
+                  Seguir en {storagePref.mode === 'cloud' ? 'Nube' : 'Local'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -598,7 +632,7 @@ export default function App() {
                 }}
                 className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
               >
-                Cambiar
+                Ajustes
               </button>
             </div>
           </div>
