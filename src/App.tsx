@@ -20,7 +20,16 @@ import { RestTimer } from './components/RestTimer';
 import { NewExerciseModal } from './components/NewExerciseModal';
 import { ExcelModal } from './components/ExcelModal';
 import { InstallAppModal } from './components/InstallAppModal';
-import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun, Activity } from 'lucide-react';
+import { StoragePreferenceModal } from './components/StoragePreferenceModal';
+import { WhatsNewModal } from './components/WhatsNewModal';
+import {
+  getStoragePreference,
+  shouldShowChangelog,
+  StorageMode,
+  CloudProvider,
+  AppDataSnapshot,
+} from './utils/storageManager';
+import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun, Activity, Cloud, HardDrive } from 'lucide-react';
 
 const STORAGE_KEY_SETS = 'fuerzalog_sets_v1';
 const STORAGE_KEY_EXERCISES = 'fuerzalog_exercises_v1';
@@ -176,6 +185,31 @@ export default function App() {
   // Excel & App Install Modals
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isInstallAppModalOpen, setIsInstallAppModalOpen] = useState(false);
+
+  // Storage Preference State (Local vs Personal Cloud)
+  const [storagePref, setStoragePref] = useState(() => getStoragePreference());
+  const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  const [isStorageInitialPrompt, setIsStorageInitialPrompt] = useState(false);
+  const [storageConfirmBannerDismissed, setStorageConfirmBannerDismissed] = useState(false);
+
+  // Changelog / What's New Modal State
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
+  const [hasNewChangelog, setHasNewChangelog] = useState(() => shouldShowChangelog());
+
+  // Startup verification: check if storage was already asked, and if new app changes exist
+  useEffect(() => {
+    const pref = getStoragePreference();
+    if (!pref.hasBeenPrompted || pref.mode === null) {
+      // First time opening: directly prompt the user to choose their preferred storage
+      setIsStorageInitialPrompt(true);
+      setIsStorageModalOpen(true);
+    }
+
+    // Check if new changes occurred in the app since last visit
+    if (shouldShowChangelog()) {
+      setIsWhatsNewOpen(true);
+    }
+  }, []);
 
   // Persist sets
   useEffect(() => {
@@ -343,6 +377,30 @@ export default function App() {
     setCardioWorkouts(getSampleCardioWorkouts());
   };
 
+  const handleStorageModeChanged = (newMode: StorageMode, provider: CloudProvider) => {
+    setStoragePref({
+      mode: newMode,
+      hasBeenPrompted: true,
+      provider,
+    });
+    setStorageConfirmBannerDismissed(true);
+  };
+
+  const handleImportFullBackup = (snapshot: AppDataSnapshot) => {
+    if (snapshot.sets && snapshot.sets.length > 0) {
+      setSets(sortSetsChronological(snapshot.sets, 'desc'));
+    }
+    if (snapshot.exercises && snapshot.exercises.length > 0) {
+      setExercises(sortExercisesAlphabetically(snapshot.exercises));
+    }
+    if (snapshot.schedule) {
+      setSchedule(snapshot.schedule);
+    }
+    if (snapshot.cardioWorkouts && snapshot.cardioWorkouts.length > 0) {
+      setCardioWorkouts(snapshot.cardioWorkouts);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-start text-slate-900 dark:text-slate-100 selection:bg-teal-100 dark:selection:bg-teal-900 selection:text-teal-900 dark:selection:text-teal-100 transition-colors duration-200">
       {/* Mobile container centered on desktop */}
@@ -370,6 +428,47 @@ export default function App() {
                 <Sun className="w-3.5 h-3.5 text-amber-400" />
               ) : (
                 <Moon className="w-3.5 h-3.5 text-slate-600" />
+              )}
+            </button>
+
+            {/* Storage Preference Button (Local vs Personal Cloud) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsStorageInitialPrompt(false);
+                setIsStorageModalOpen(true);
+              }}
+              className={`p-1.5 rounded-lg flex items-center gap-1 font-semibold transition-colors border ${
+                storagePref.mode === 'cloud'
+                  ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border-sky-200/80 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/40'
+                  : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-cyan-300 border-teal-200/80 dark:border-teal-800/60 hover:bg-teal-100 dark:hover:bg-teal-900/40'
+              }`}
+              title={`Almacenamiento: ${storagePref.mode === 'cloud' ? 'Mi Nube Personal' : 'Memoria del Teléfono'}. Toca para cambiar.`}
+            >
+              {storagePref.mode === 'cloud' ? (
+                <Cloud className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              ) : (
+                <HardDrive className="w-3.5 h-3.5 text-teal-600 dark:text-cyan-400" />
+              )}
+              <span className="text-[10px] font-bold hidden sm:inline">
+                {storagePref.mode === 'cloud' ? 'Nube' : 'Local'}
+              </span>
+            </button>
+
+            {/* Whats New / Novedades Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setHasNewChangelog(false);
+                setIsWhatsNewOpen(true);
+              }}
+              className="relative p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex items-center gap-1 font-semibold transition-colors"
+              title="Ver novedades y mejoras recientes en LogGym"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-[10px] font-bold hidden sm:inline">Novedades</span>
+              {hasNewChangelog && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border-2 border-white dark:border-slate-900" />
               )}
             </button>
 
@@ -443,6 +542,48 @@ export default function App() {
             )}
           </div>
         </header>
+
+        {/* Storage Preference Verification & Choice Banner */}
+        {!storageConfirmBannerDismissed && storagePref.mode && (
+          <div className="mx-3.5 mt-2.5 p-3 bg-gradient-to-r from-teal-50 via-teal-50/70 to-cyan-50 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border border-teal-200/90 dark:border-teal-800/70 rounded-2xl shadow-sm text-xs text-slate-700 dark:text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-teal-600 dark:bg-cyan-500 text-white shadow-sm shrink-0">
+                {storagePref.mode === 'cloud' ? <Cloud className="w-4 h-4" /> : <HardDrive className="w-4 h-4" />}
+              </span>
+              <div>
+                <p className="font-bold text-slate-900 dark:text-white leading-tight">
+                  Guardando en:{' '}
+                  <span className="text-teal-700 dark:text-cyan-400">
+                    {storagePref.mode === 'cloud' ? '☁️ Mi Nube Personal' : '📱 Este Teléfono (Local)'}
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                  ¿Prefieres seguir guardándolos aquí o cambiar a la nube?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setStorageConfirmBannerDismissed(true)}
+                className="px-2.5 py-1.5 rounded-lg bg-teal-600 dark:bg-cyan-500 text-white text-[11px] font-bold hover:bg-teal-700 dark:hover:bg-cyan-400 transition-colors shadow-sm shrink-0"
+              >
+                Seguir en {storagePref.mode === 'cloud' ? 'Nube' : 'Local'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsStorageInitialPrompt(false);
+                  setIsStorageModalOpen(true);
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
+              >
+                Cambiar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Content Tabs */}
         <div className="flex-1 px-4 pt-3">
@@ -573,6 +714,31 @@ export default function App() {
         <InstallAppModal
           isOpen={isInstallAppModalOpen}
           onClose={() => setIsInstallAppModalOpen(false)}
+        />
+
+        {/* Storage Preference Modal (Local vs Personal Cloud) */}
+        <StoragePreferenceModal
+          isOpen={isStorageModalOpen}
+          onClose={() => setIsStorageModalOpen(false)}
+          currentMode={storagePref.mode}
+          onModeChanged={handleStorageModeChanged}
+          sets={sets}
+          exercises={exercises}
+          schedule={schedule}
+          cardioWorkouts={cardioWorkouts}
+          onImportFullBackup={handleImportFullBackup}
+          isInitialPrompt={isStorageInitialPrompt}
+        />
+
+        {/* Whats New / Recent Changes Popup */}
+        <WhatsNewModal
+          isOpen={isWhatsNewOpen}
+          onClose={() => setIsWhatsNewOpen(false)}
+          onOpenStorageSettings={() => {
+            setIsStorageInitialPrompt(false);
+            setIsStorageModalOpen(true);
+          }}
+          onOpenCardio={() => setActiveTab('cardio')}
         />
       </main>
     </div>
