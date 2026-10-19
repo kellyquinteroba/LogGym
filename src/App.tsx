@@ -150,7 +150,9 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.isActive) return true;
+        if (parsed?.isActive && parsed?.targetEndTime && parsed.targetEndTime > Date.now()) {
+          return true;
+        }
       }
     } catch {
       // ignore
@@ -159,6 +161,7 @@ export default function App() {
   });
   const [restTimerSeconds, setRestTimerSeconds] = useState(90);
   const [restTimerKey, setRestTimerKey] = useState(0);
+  const [restTimerAutoStart, setRestTimerAutoStart] = useState(false);
 
   // Cardio Workouts (Stored safely in LocalStorage)
   const [cardioWorkouts, setCardioWorkouts] = useState<CardioWorkout[]>(() => {
@@ -309,6 +312,7 @@ export default function App() {
     if (autoStartRest && newSetData.restSeconds > 0) {
       const safeRest = Math.min(180, Math.max(1, newSetData.restSeconds));
       setRestTimerSeconds(safeRest);
+      setRestTimerAutoStart(true);
       setIsRestTimerOpen(true);
       setRestTimerKey((prev) => prev + 1);
     }
@@ -509,7 +513,10 @@ export default function App() {
             {/* Rest Timer Button */}
             <button
               type="button"
-              onClick={() => setIsRestTimerOpen((prev) => !prev)}
+              onClick={() => {
+                setRestTimerAutoStart(false);
+                setIsRestTimerOpen((prev) => !prev);
+              }}
               className={`p-1.5 rounded-lg flex items-center gap-1 font-medium transition-colors ${
                 isRestTimerOpen
                   ? 'bg-[#0e7490] text-white'
@@ -692,9 +699,13 @@ export default function App() {
           key={restTimerKey}
           initialSeconds={restTimerSeconds}
           isOpen={isRestTimerOpen}
-          onClose={() => setIsRestTimerOpen(false)}
+          onClose={() => {
+            setIsRestTimerOpen(false);
+            setRestTimerAutoStart(false);
+          }}
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled((prev) => !prev)}
+          autoStart={restTimerAutoStart}
         />
 
         {/* Bottom Navigation */}

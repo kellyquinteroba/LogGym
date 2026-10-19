@@ -11,6 +11,7 @@ interface RestTimerProps {
   onClose: () => void;
   soundEnabled: boolean;
   onToggleSound?: () => void;
+  autoStart?: boolean;
 }
 
 export const RestTimer: React.FC<RestTimerProps> = ({
@@ -19,13 +20,27 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   onClose,
   soundEnabled,
   onToggleSound,
+  autoStart = false,
 }) => {
   // Enforce maximum rest of 3 minutes (180 seconds)
   const clampedInitial = Math.min(180, Math.max(1, initialSeconds));
 
   const [totalSeconds, setTotalSeconds] = useState(clampedInitial);
   const [secondsLeft, setSecondsLeft] = useState(clampedInitial);
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.isActive && parsed?.targetEndTime && parsed.targetEndTime > Date.now()) {
+          return true;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return autoStart;
+  });
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
@@ -89,28 +104,31 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   useEffect(() => {
     if (initialSeconds > 0) {
       const clamped = Math.min(180, Math.max(1, initialSeconds));
-      const targetTime = Date.now() + clamped * 1000;
-      targetEndTimeRef.current = targetTime;
       setTotalSeconds(clamped);
       setSecondsLeft(clamped);
       setIsCompleted(false);
-      setIsActive(true);
 
-      // Persist target end time so it survives page reloads / app closes
-      try {
-        localStorage.setItem(
-          STORAGE_KEY_ACTIVE_TIMER,
-          JSON.stringify({
-            targetEndTime: targetTime,
-            totalSeconds: clamped,
-            isActive: true,
-          })
-        );
-      } catch {
-        // ignore
+      if (autoStart) {
+        const targetTime = Date.now() + clamped * 1000;
+        targetEndTimeRef.current = targetTime;
+        setIsActive(true);
+
+        // Persist target end time so it survives page reloads / app closes
+        try {
+          localStorage.setItem(
+            STORAGE_KEY_ACTIVE_TIMER,
+            JSON.stringify({
+              targetEndTime: targetTime,
+              totalSeconds: clamped,
+              isActive: true,
+            })
+          );
+        } catch {
+          // ignore
+        }
       }
     }
-  }, [initialSeconds]);
+  }, [initialSeconds, autoStart]);
 
   // Sync with real-time target timestamp whenever user returns to the tab or app
   useEffect(() => {
