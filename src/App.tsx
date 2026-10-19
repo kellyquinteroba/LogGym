@@ -46,8 +46,12 @@ export default function App() {
   const currentDayOfWeek = getTodayDayOfWeek(todayDate);
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_SOUND);
-    return saved !== null ? saved === 'true' : true;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SOUND);
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
   });
 
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -198,42 +202,64 @@ export default function App() {
 
   // Startup verification: check if storage was already asked, and if new app changes exist
   useEffect(() => {
-    const pref = getStoragePreference();
-    if (!pref.hasBeenPrompted || pref.mode === null) {
-      // First time opening: directly prompt the user to choose their preferred storage
-      setIsStorageInitialPrompt(true);
-      setIsStorageModalOpen(true);
-    }
-
-    // Check if new changes occurred in the app since last visit
-    if (shouldShowChangelog()) {
-      setIsWhatsNewOpen(true);
+    try {
+      const pref = getStoragePreference();
+      if (!pref.hasBeenPrompted || pref.mode === null) {
+        // First time opening: directly prompt the user to choose their preferred storage
+        setIsStorageInitialPrompt(true);
+        setIsStorageModalOpen(true);
+      } else if (shouldShowChangelog()) {
+        // Only show changelog if storage modal is not prompting, preventing dual modals
+        setIsWhatsNewOpen(true);
+      }
+    } catch (e) {
+      console.warn('Startup verification error:', e);
     }
   }, []);
 
   // Persist sets
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SETS, JSON.stringify(sets));
+    try {
+      localStorage.setItem(STORAGE_KEY_SETS, JSON.stringify(sets));
+    } catch {
+      // ignore
+    }
   }, [sets]);
 
   // Persist exercises
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_EXERCISES, JSON.stringify(exercises));
+    try {
+      localStorage.setItem(STORAGE_KEY_EXERCISES, JSON.stringify(exercises));
+    } catch {
+      // ignore
+    }
   }, [exercises]);
 
   // Persist sound setting
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SOUND, String(soundEnabled));
+    try {
+      localStorage.setItem(STORAGE_KEY_SOUND, String(soundEnabled));
+    } catch {
+      // ignore
+    }
   }, [soundEnabled]);
 
   // Persist weekly schedule
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedule));
+    try {
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedule));
+    } catch {
+      // ignore
+    }
   }, [schedule]);
 
   // Persist today's session exercises
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_TODAY_EXERCISES_PREFIX + todayDate, JSON.stringify(todayExerciseIds));
+    try {
+      localStorage.setItem(STORAGE_KEY_TODAY_EXERCISES_PREFIX + todayDate, JSON.stringify(todayExerciseIds));
+    } catch {
+      // ignore
+    }
   }, [todayExerciseIds, todayDate]);
 
   const handleUpdateSchedule = (newSchedule: WeeklySchedule) => {
@@ -384,6 +410,9 @@ export default function App() {
       provider,
     });
     setStorageConfirmBannerDismissed(true);
+    if (shouldShowChangelog()) {
+      setIsWhatsNewOpen(true);
+    }
   };
 
   const handleImportFullBackup = (snapshot: AppDataSnapshot) => {
@@ -439,37 +468,20 @@ export default function App() {
                 setIsStorageModalOpen(true);
               }}
               className={`p-1.5 rounded-lg flex items-center gap-1 font-semibold transition-colors border ${
-                storagePref.mode === 'cloud'
+                storagePref?.mode === 'cloud'
                   ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border-sky-200/80 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/40'
                   : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-cyan-300 border-teal-200/80 dark:border-teal-800/60 hover:bg-teal-100 dark:hover:bg-teal-900/40'
               }`}
-              title={`Almacenamiento: ${storagePref.mode === 'cloud' ? 'Mi Nube Personal' : 'Memoria del Teléfono'}. Toca para cambiar.`}
+              title={`Almacenamiento: ${storagePref?.mode === 'cloud' ? 'Mi Nube Personal' : 'Memoria del Teléfono'}. Toca para cambiar.`}
             >
-              {storagePref.mode === 'cloud' ? (
+              {storagePref?.mode === 'cloud' ? (
                 <Cloud className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               ) : (
                 <HardDrive className="w-3.5 h-3.5 text-teal-600 dark:text-cyan-400" />
               )}
               <span className="text-[10px] font-bold hidden sm:inline">
-                {storagePref.mode === 'cloud' ? 'Nube' : 'Local'}
+                {storagePref?.mode === 'cloud' ? 'Nube' : 'Local'}
               </span>
-            </button>
-
-            {/* Whats New / Novedades Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setHasNewChangelog(false);
-                setIsWhatsNewOpen(true);
-              }}
-              className="relative p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex items-center gap-1 font-semibold transition-colors"
-              title="Ver novedades y mejoras recientes en LogGym"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-[10px] font-bold hidden sm:inline">Novedades</span>
-              {hasNewChangelog && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border-2 border-white dark:border-slate-900" />
-              )}
             </button>
 
             {/* Excel Manager */}
@@ -544,7 +556,7 @@ export default function App() {
         </header>
 
         {/* Storage Preference Verification & Choice Banner */}
-        {!storageConfirmBannerDismissed && storagePref.mode && (
+        {!storageConfirmBannerDismissed && storagePref?.mode && (
           <div className="mx-3.5 mt-2.5 p-3 bg-gradient-to-r from-teal-50 via-teal-50/70 to-cyan-50 dark:from-slate-900 dark:via-teal-950/40 dark:to-slate-900 border border-teal-200/90 dark:border-teal-800/70 rounded-2xl shadow-sm text-xs text-slate-700 dark:text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in duration-200">
             <div className="flex items-center gap-2.5">
               <span className="p-2 rounded-xl bg-teal-600 dark:bg-cyan-500 text-white shadow-sm shrink-0">
@@ -692,6 +704,11 @@ export default function App() {
             setActiveTab(tab);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          onOpenWhatsNew={() => {
+            setHasNewChangelog(false);
+            setIsWhatsNewOpen(true);
+          }}
+          hasNewChangelog={hasNewChangelog}
         />
 
         {/* Modal for adding custom exercise */}
@@ -720,7 +737,7 @@ export default function App() {
         <StoragePreferenceModal
           isOpen={isStorageModalOpen}
           onClose={() => setIsStorageModalOpen(false)}
-          currentMode={storagePref.mode}
+          currentMode={storagePref?.mode ?? null}
           onModeChanged={handleStorageModeChanged}
           sets={sets}
           exercises={exercises}

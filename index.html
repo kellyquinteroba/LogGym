@@ -21,9 +21,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      window.$RefreshReg$ = window.$RefreshReg$ || function () {};
-      window.$RefreshSig$ = window.$RefreshSig$ || function () { return function (type) { return type; }; };
-      window.__vite_plugin_react_preamble_installed__ = true;
+      // Early runtime error capture to prevent silent blank screens
+      window.addEventListener('error', function(e) {
+        console.error('Global script error:', e);
+        var root = document.getElementById('root');
+        if (root && !root.hasChildNodes()) {
+          root.innerHTML = '<div style="min-height:100vh;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;padding:16px;font-family:sans-serif;text-align:center;"><div style="max-width:400px;background:#1e293b;padding:24px;border-radius:16px;border:1px solid #334155;"><h2 style="font-size:18px;margin-bottom:8px;font-weight:bold;">Cargando LogGym...</h2><p style="font-size:13px;color:#94a3b8;margin-bottom:16px;">Si esta pantalla no avanza, pulsa el botón para refrescar.</p><button onclick="window.location.reload(true)" style="background:#0e7490;color:white;border:none;padding:10px 18px;border-radius:10px;font-weight:bold;cursor:pointer;">Recargar Aplicación</button></div></div>';
+        }
+      });
     </script>
   </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased font-['Plus_Jakarta_Sans',sans-serif] min-h-screen transition-colors duration-200">

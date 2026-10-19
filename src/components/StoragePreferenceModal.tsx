@@ -57,7 +57,10 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
 
   if (!isOpen) return null;
 
-  const totalLocalRecords = sets.length + cardioWorkouts.length;
+  const safeSets = Array.isArray(sets) ? sets : [];
+  const safeCardio = Array.isArray(cardioWorkouts) ? cardioWorkouts : [];
+  const safeExercises = Array.isArray(exercises) ? exercises : [];
+  const totalLocalRecords = safeSets.length + safeCardio.length;
 
   const handleSavePreference = () => {
     setStoragePreference(selectedMode, selectedProvider);
@@ -69,7 +72,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
     setIsProcessing(true);
     setExportSuccess(null);
     try {
-      const snapshot = createAppDataSnapshot(sets, exercises, schedule, cardioWorkouts);
+      const snapshot = createAppDataSnapshot(safeSets, safeExercises, schedule, safeCardio);
       const ok = await exportAndShareBackup(snapshot);
       if (ok) {
         setExportSuccess('¡Respaldo preparado con éxito! Guárdalo en tu Google Drive, OneDrive o archivos.');
@@ -247,7 +250,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
                   <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
                     <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                     <span>
-                      Detectamos <strong>{sets.length} series</strong> y <strong>{cardioWorkouts.length} registros de cardio</strong> en este teléfono. No se borrarán: se exportarán automáticamente a tu nube.
+                      Detectamos <strong>{safeSets.length} series</strong> y <strong>{safeCardio.length} registros de cardio</strong> en este teléfono. No se borrarán: se exportarán automáticamente a tu nube.
                     </span>
                   </div>
                 )}
