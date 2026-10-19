@@ -33,9 +33,9 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[88dvh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with gradient badge */}
@@ -126,16 +126,16 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({
             </div>
             <ul className="space-y-1 pl-7 list-disc list-outside text-slate-600 dark:text-slate-300">
               <li>
-                <strong>Botón de cerrar:</strong> el recuadro flotante se puede cerrar o abrir cuando gustes con total libertad.
+                <strong>Sin sorpresas al entrar:</strong> el cronómetro nunca empieza a correr solo al abrir la aplicación.
               </li>
               <li>
-                <strong>Activación inmediata:</strong> el descanso empieza a correr enseguida tras anotar cada serie.
+                <strong>Activación inteligente:</strong> únicamente inicia la cuenta atrás cuando registras una serie y tienes el descanso automático activo.
               </li>
               <li>
-                <strong>Tope de 3 minutos:</strong> descanso protegido con un límite máximo de 180 segundos.
+                <strong>Tope seguro de 3 minutos:</strong> descanso protegido con un límite máximo de 180 segundos.
               </li>
               <li>
-                <strong>Persistencia en segundo plano:</strong> el cronómetro sigue activo aun si minimizas o cierras la app.
+                <strong>Control manual:</strong> puedes pausar, reiniciar o cerrar el cronómetro en cualquier momento desde la barra superior.
               </li>
             </ul>
           </div>

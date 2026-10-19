@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   STORAGE_PROMPTED_ONCE: 'loggym_storage_prompted_v1',
   CLOUD_PROVIDER: 'loggym_cloud_provider_v1',
   CLOUD_USER_EMAIL: 'loggym_cloud_user_email_v1',
+  CLOUD_FOLDER_NAME: 'loggym_cloud_folder_name_v1',
   LAST_CLOUD_SYNC: 'loggym_last_cloud_sync_v1',
   LAST_SEEN_CHANGELOG_VERSION: 'loggym_last_seen_changelog_v1',
 };
@@ -29,6 +30,7 @@ export interface StoragePreference {
   hasBeenPrompted: boolean;
   provider: CloudProvider;
   accountEmail?: string;
+  folderName: string;
   lastSyncTimestamp?: number;
 }
 
@@ -41,6 +43,7 @@ export function getStoragePreference(): StoragePreference {
     const prompted = localStorage.getItem(STORAGE_KEYS.STORAGE_PROMPTED_ONCE) === 'true';
     const provider = (localStorage.getItem(STORAGE_KEYS.CLOUD_PROVIDER) as CloudProvider) || 'google_drive';
     const accountEmail = localStorage.getItem(STORAGE_KEYS.CLOUD_USER_EMAIL) || undefined;
+    const folderName = localStorage.getItem(STORAGE_KEYS.CLOUD_FOLDER_NAME) || 'LogGym';
     const lastSyncRaw = localStorage.getItem(STORAGE_KEYS.LAST_CLOUD_SYNC);
     const lastSyncTimestamp = lastSyncRaw ? parseInt(lastSyncRaw, 10) : undefined;
 
@@ -49,6 +52,7 @@ export function getStoragePreference(): StoragePreference {
       hasBeenPrompted: prompted,
       provider,
       accountEmail,
+      folderName,
       lastSyncTimestamp,
     };
   } catch {
@@ -56,6 +60,7 @@ export function getStoragePreference(): StoragePreference {
       mode: null,
       hasBeenPrompted: false,
       provider: 'google_drive',
+      folderName: 'LogGym',
     };
   }
 }
@@ -66,12 +71,14 @@ export function getStoragePreference(): StoragePreference {
 export function setStoragePreference(
   mode: StorageMode,
   provider: CloudProvider = 'google_drive',
-  accountEmail?: string
+  accountEmail?: string,
+  folderName: string = 'LogGym'
 ): void {
   try {
     localStorage.setItem(STORAGE_KEYS.STORAGE_MODE, mode);
     localStorage.setItem(STORAGE_KEYS.STORAGE_PROMPTED_ONCE, 'true');
     localStorage.setItem(STORAGE_KEYS.CLOUD_PROVIDER, provider);
+    localStorage.setItem(STORAGE_KEYS.CLOUD_FOLDER_NAME, folderName || 'LogGym');
     if (accountEmail) {
       localStorage.setItem(STORAGE_KEYS.CLOUD_USER_EMAIL, accountEmail);
     }

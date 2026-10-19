@@ -27,20 +27,8 @@ export const RestTimer: React.FC<RestTimerProps> = ({
 
   const [totalSeconds, setTotalSeconds] = useState(clampedInitial);
   const [secondsLeft, setSecondsLeft] = useState(clampedInitial);
-  const [isActive, setIsActive] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.isActive && parsed?.targetEndTime && parsed.targetEndTime > Date.now()) {
-          return true;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return autoStart;
-  });
+  // Only start active countdown if autoStart was explicitly requested (e.g. logging a set with auto-rest on)
+  const [isActive, setIsActive] = useState<boolean>(Boolean(autoStart));
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
@@ -133,6 +121,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   // Sync with real-time target timestamp whenever user returns to the tab or app
   useEffect(() => {
     const handleSyncWithClock = () => {
+      if (!isOpen || !isActive) return;
       try {
         const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
         if (raw) {

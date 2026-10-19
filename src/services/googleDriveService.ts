@@ -63,27 +63,158 @@ export function initAuthListener(
   });
 }
 
+export interface GoogleUserInfo {
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+}
+
+export interface GoogleSignInResult {
+  success: boolean;
+  user?: GoogleUserInfo;
+  accessToken?: string;
+  isDomainRestricted?: boolean;
+  error?: string;
+}
+
 /**
- * Sign in with Google Account (Prompts account chooser)
+ * Dynamically ensure Google Identity Services script is ready
  */
-export async function signInWithGoogle(): Promise<{ user: User; accessToken: string }> {
+async function ensureGsiClient(): Promise<any> {
+  if (typeof window === 'undefined') return null;
+  if ((window as any).google?.accounts?.oauth2) {
+    return (window as any).google.accounts.oauth2;
+  }
+
+  return new Promise((resolve) => {
+    let script = document.querySelector('script[src*="accounts.google.com/gsi/client"]') as HTMLScriptElement | null;
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    let checks = 0;
+    const interval = setInterval(() => {
+      checks++;
+      if ((window as any).google?.accounts?.oauth2) {
+        clearInterval(interval);
+        resolve((window as any).google.accounts.oauth2);
+      } else if (checks > 25) {
+        clearInterval(interval);
+        resolve(null);
+      }
+    }, 100);
+  });
+}
+
+/**
+ * Sign in with Google Account (Prompts account chooser via GIS or Firebase)
+ */
+export async function signInWithGoogle(): Promise<GoogleSignInResult> {
+  // 1. Try Google Identity Services first (bypasses Firebase domain whitelist limitations)
+  const gsi = await ensureGsiClient();
+  if (gsi && firebaseConfig.oAuthClientId) {
+    try {
+      const res = await new Promise<GoogleSignInResult>((resolve) => {
+        const client = gsi.initTokenClient({
+          client_id: firebaseConfig.oAuthClientId,
+          scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+          prompt: 'select_account',
+          callback: async (resp: any) => {
+            if (resp.error) {
+              resolve({
+                success: false,
+                error: resp.error_description || resp.error,
+              });
+              return;
+            }
+            const token = resp.access_token;
+            cachedAccessToken = token;
+            try {
+              const uRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const uData = await uRes.json();
+              resolve({
+                success: true,
+                user: {
+                  email: uData.email,
+                  displayName: uData.name || uData.email,
+                  photoURL: uData.picture,
+                },
+                accessToken: token,
+              });
+            } catch {
+              resolve({
+                success: true,
+                user: {
+                  email: 'usuario@gmail.com',
+                  displayName: 'Usuario Google',
+                },
+                accessToken: token,
+              });
+            }
+          },
+        });
+        client.requestAccessToken();
+      });
+
+      if (res.success) {
+        return res;
+      }
+    } catch (gisError) {
+      console.warn('GIS error, attempting Firebase fallback:', gisError);
+    }
+  }
+
+  // 2. Try Firebase Auth popup
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
 
     if (!credential?.accessToken) {
-      throw new Error('No se recibió el token de acceso de Google.');
+      return {
+        success: false,
+        error: 'No se recibió el token de acceso de Google.',
+      };
     }
 
     cachedAccessToken = credential.accessToken;
     return {
-      user: result.user,
+      success: true,
+      user: {
+        email: result.user.email || '',
+        displayName: result.user.displayName || result.user.email || '',
+        photoURL: result.user.photoURL || undefined,
+      },
       accessToken: cachedAccessToken,
     };
   } catch (error: any) {
-    console.error('Error during Google sign in:', error);
-    throw error;
+    console.warn('Firebase sign-in result:', error);
+    if (
+      error?.code === 'auth/unauthorized-domain' ||
+      error?.message?.includes('unauthorized-domain')
+    ) {
+      return {
+        success: false,
+        isDomainRestricted: true,
+        error: 'Dominio de vista previa no autorizado en Firebase. Conecta tu cuenta ingresando tu correo o sincroniza directamente con tu app de Google Drive.',
+      };
+    }
+    if (error?.code === 'auth/popup-closed-by-user') {
+      return {
+        success: false,
+        error: 'Inicio de sesión cancelado por el usuario.',
+      };
+    }
+    return {
+      success: false,
+      error: error?.message || 'Error al conectar con Google.',
+    };
   } finally {
     isSigningIn = false;
   }
@@ -105,11 +236,15 @@ export function getCurrentAccessToken(): string | null {
 }
 
 /**
- * Helper: Find or create the 'LogGym' folder in the user's personal Google Drive
+ * Helper: Find or create the specified folder (default 'LogGym') in the user's personal Google Drive
  */
-export async function getOrCreateLogGymFolder(accessToken: string): Promise<GoogleDriveFolder> {
-  // Search for existing active folder named 'LogGym'
-  const query = encodeURIComponent("name = 'LogGym' and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+export async function getOrCreateLogGymFolder(
+  accessToken: string,
+  folderName: string = 'LogGym'
+): Promise<GoogleDriveFolder> {
+  const safeName = folderName.trim() || 'LogGym';
+  // Search for existing active folder named safeName
+  const query = encodeURIComponent(`name = '${safeName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&spaces=drive`;
 
   const searchRes = await fetch(searchUrl, {
@@ -120,7 +255,7 @@ export async function getOrCreateLogGymFolder(accessToken: string): Promise<Goog
 
   if (!searchRes.ok) {
     const errData = await searchRes.json().catch(() => ({}));
-    throw new Error(errData.error?.message || 'Error buscando carpeta en Google Drive');
+    throw new Error(errData.error?.message || `Error buscando carpeta ${safeName} en Google Drive`);
   }
 
   const searchData = await searchRes.json();
@@ -131,7 +266,7 @@ export async function getOrCreateLogGymFolder(accessToken: string): Promise<Goog
     };
   }
 
-  // Not found: create folder 'LogGym'
+  // Not found: create folder
   const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: {
@@ -139,34 +274,35 @@ export async function getOrCreateLogGymFolder(accessToken: string): Promise<Goog
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: 'LogGym',
+      name: safeName,
       mimeType: 'application/vnd.google-apps.folder',
-      description: 'Carpeta oficial de respaldos y entrenamientos de LogGym',
+      description: `Carpeta oficial de respaldos y entrenamientos de LogGym (${safeName})`,
     }),
   });
 
   if (!createRes.ok) {
     const errData = await createRes.json().catch(() => ({}));
-    throw new Error(errData.error?.message || 'Error creando carpeta LogGym en Google Drive');
+    throw new Error(errData.error?.message || `Error creando carpeta ${safeName} en Google Drive`);
   }
 
   const newFolder = await createRes.json();
   return {
     id: newFolder.id,
-    name: 'LogGym',
+    name: safeName,
   };
 }
 
 /**
- * Upload & Sync application data to Google Drive in the LogGym folder
+ * Upload & Sync application data to Google Drive in the specified folder (default: LogGym)
  */
 export async function syncAppDataToGoogleDrive(
   accessToken: string,
-  snapshot: AppDataSnapshot
+  snapshot: AppDataSnapshot,
+  folderName: string = 'LogGym'
 ): Promise<DriveSyncResult> {
   try {
     // 1. Ensure folder exists in user's Drive
-    const folder = await getOrCreateLogGymFolder(accessToken);
+    const folder = await getOrCreateLogGymFolder(accessToken, folderName);
 
     // 2. Search if 'LogGym_Entrenamientos.json' already exists in that folder
     const fileName = 'LogGym_Entrenamientos.json';
@@ -272,10 +408,14 @@ export async function syncAppDataToGoogleDrive(
 }
 
 /**
- * Fetch and restore the latest backup from Google Drive 'LogGym' folder
+ * Fetch and restore the latest backup from Google Drive folder (default: 'LogGym')
  */
-export async function fetchAppDataFromGoogleDrive(accessToken: string): Promise<AppDataSnapshot> {
-  const folder = await getOrCreateLogGymFolder(accessToken);
+export async function fetchAppDataFromGoogleDrive(
+  accessToken: string,
+  folderName: string = 'LogGym'
+): Promise<AppDataSnapshot> {
+  const safeName = folderName.trim() || 'LogGym';
+  const folder = await getOrCreateLogGymFolder(accessToken, safeName);
   const fileName = 'LogGym_Entrenamientos.json';
   const query = encodeURIComponent(`name = '${fileName}' and '${folder.id}' in parents and trashed = false`);
   const checkFileUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime)`;

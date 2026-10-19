@@ -144,21 +144,8 @@ export default function App() {
     return [];
   });
 
-  // Rest Timer State (check if there was a running timer in background)
-  const [isRestTimerOpen, setIsRestTimerOpen] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_TIMER);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.isActive && parsed?.targetEndTime && parsed.targetEndTime > Date.now()) {
-          return true;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return false;
-  });
+  // Rest Timer State (never starts running automatically on cold launch)
+  const [isRestTimerOpen, setIsRestTimerOpen] = useState(false);
   const [restTimerSeconds, setRestTimerSeconds] = useState(90);
   const [restTimerKey, setRestTimerKey] = useState(0);
   const [restTimerAutoStart, setRestTimerAutoStart] = useState(false);
