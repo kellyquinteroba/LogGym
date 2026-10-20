@@ -9,6 +9,16 @@ import {
   AppDataSnapshot,
   getStoragePreference,
 } from '../utils/storageManager';
+import {
+  initAuth,
+  googleSignIn,
+  logout,
+  writeWorkoutJsonToDrive,
+  readWorkoutJsonFromDrive,
+  listLogGymFolderFiles,
+  GoogleDriveFileMeta,
+  GoogleDriveUser,
+} from '../services/googleDriveService';
 import { WorkoutSet, Exercise, WeeklySchedule, CardioWorkout } from '../types';
 import {
   Cloud,
@@ -30,6 +40,8 @@ import {
   LogOut,
   Info,
   ShieldCheck,
+  RefreshCw,
+  FileText,
 } from 'lucide-react';
 
 interface StoragePreferenceModalProps {
@@ -69,16 +81,16 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Google Account State
-  const [googleEmail, setGoogleEmail] = useState<string>(
-    initialPref.provider === 'google_drive' ? initialPref.accountEmail || '' : ''
-  );
-  const [googleInput, setGoogleInput] = useState<string>(
-    initialPref.provider === 'google_drive' ? initialPref.accountEmail || '' : ''
-  );
-  const [isEditingGoogleEmail, setIsEditingGoogleEmail] = useState<boolean>(
-    !initialPref.accountEmail || initialPref.provider !== 'google_drive'
-  );
+  // Google Drive API State
+  const [googleUser, setGoogleUser] = useState<GoogleDriveUser | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [driveFiles, setDriveFiles] = useState<GoogleDriveFileMeta[]>([]);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    actionType: 'write' | 'read';
+  } | null>(null);
 
   // Folder Configuration
   const [folderName, setFolderName] = useState<string>(initialPref.folderName || 'LogGym');
@@ -110,6 +122,29 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
     }
   }, [activeTab]);
 
+  // Initialize auth listener
+  useEffect(() => {
+    const unsub = initAuth(
+      (user, token) => {
+        setGoogleUser(user);
+        setAuthToken(token);
+        if (user.email) {
+          setStoragePreference('cloud', 'google_drive', user.email, folderName);
+        }
+        // Load existing files in LogGym folder
+        listLogGymFolderFiles(token, folderName)
+          .then((files) => setDriveFiles(files))
+          .catch(() => {});
+      },
+      () => {
+        setGoogleUser(null);
+        setAuthToken(null);
+        setDriveFiles([]);
+      }
+    );
+    return () => unsub();
+  }, [folderName]);
+
   if (!isOpen) return null;
 
   const safeSets = Array.isArray(sets) ? sets : [];
@@ -120,7 +155,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
   const handleSavePreference = () => {
     let emailToSave: string | undefined = undefined;
     if (activeTab === 'google_drive') {
-      emailToSave = googleEmail || googleInput.trim() || undefined;
+      emailToSave = googleUser?.email || undefined;
     } else if (activeTab === 'onedrive') {
       emailToSave = oneDriveEmail || oneDriveInput.trim() || undefined;
     }
@@ -131,27 +166,94 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
     onClose();
   };
 
-  const handleLinkGoogleAccount = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = googleInput.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setSyncError('Por favor ingresa un correo de Google válido (ej: tu-nombre@gmail.com)');
-      return;
-    }
-    setGoogleEmail(cleanEmail);
-    setIsEditingGoogleEmail(false);
+  const handleGoogleLogin = async () => {
+    setIsProcessing(true);
     setSyncError(null);
-    setSyncMessage(`¡Cuenta vinculada con ${cleanEmail}! Tus respaldos se guardarán en tu Google Drive personal.`);
-    setStoragePreference('cloud', 'google_drive', cleanEmail, folderName);
+    setSyncMessage(null);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        setAuthToken(res.accessToken);
+        setStoragePreference('cloud', 'google_drive', res.user.email || undefined, folderName);
+        setSyncMessage(`¡Conectado exitosamente con ${res.user.email}! Carpeta «${folderName}» lista en tu Google Drive.`);
+        const files = await listLogGymFolderFiles(res.accessToken, folderName);
+        setDriveFiles(files);
+      }
+    } catch (err: any) {
+      console.error('Google Sign-In error:', err);
+      setSyncError(err?.message || 'Error al iniciar sesión con Google.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleUnlinkGoogle = () => {
-    setGoogleEmail('');
-    setGoogleInput('');
-    setIsEditingGoogleEmail(true);
+  const handleGoogleLogout = async () => {
+    setIsProcessing(true);
+    try {
+      await logout();
+      setGoogleUser(null);
+      setAuthToken(null);
+      setDriveFiles([]);
+      setSyncMessage('Sesión de Google cerrada.');
+      setStoragePreference('local', 'google_drive', undefined, folderName);
+    } catch (err: any) {
+      setSyncError('Error al cerrar sesión.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // User confirmed action for writing to Google Drive
+  const executeWriteToDrive = async () => {
+    if (!authToken) {
+      setSyncError('Debes iniciar sesión con Google primero.');
+      return;
+    }
+    setIsProcessing(true);
     setSyncMessage(null);
     setSyncError(null);
-    setStoragePreference('local', 'google_drive', undefined, folderName);
+    try {
+      const snapshot = createAppDataSnapshot(safeSets, safeExercises, schedule, safeCardio);
+      const res = await writeWorkoutJsonToDrive(authToken, snapshot, folderName);
+      if (res.success) {
+        setSyncMessage(
+          `¡Archivo JSON guardado con éxito! "${res.fileName}" actualizado en la carpeta «${folderName}» de tu Google Drive (${safeSets.length} series de fuerza y ${safeCardio.length} entrenos de cardio).`
+        );
+        const files = await listLogGymFolderFiles(authToken, folderName);
+        setDriveFiles(files);
+      }
+    } catch (err: any) {
+      console.error('Error writing to Drive:', err);
+      setSyncError(err?.message || 'Error al escribir el archivo en Google Drive.');
+    } finally {
+      setIsProcessing(false);
+      setConfirmDialog(null);
+    }
+  };
+
+  // User confirmed action for reading from Google Drive
+  const executeReadFromDrive = async () => {
+    if (!authToken) {
+      setSyncError('Debes iniciar sesión con Google primero.');
+      return;
+    }
+    setIsProcessing(true);
+    setSyncMessage(null);
+    setSyncError(null);
+    try {
+      const snapshot = await readWorkoutJsonFromDrive(authToken, folderName);
+      onImportFullBackup(snapshot);
+      setSyncMessage(
+        `¡Restauración exitosa! Se leyeron ${snapshot.sets.length} series de fuerza y ${snapshot.cardioWorkouts.length} entrenos desde la carpeta «${folderName}» de tu Google Drive.`
+      );
+    } catch (err: any) {
+      console.error('Error reading from Drive:', err);
+      setSyncError(err?.message || 'Error al leer los datos desde Google Drive.');
+    } finally {
+      setIsProcessing(false);
+      setConfirmDialog(null);
+    }
   };
 
   const handleLinkOneDriveAccount = (e: React.FormEvent) => {
@@ -182,12 +284,11 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
     const cleanFolder = folderInput.trim() || 'LogGym';
     setFolderName(cleanFolder);
     setIsEditingFolder(false);
-    setSyncMessage(`Carpeta actualizada a «${cleanFolder}».`);
-    const emailToSave = activeTab === 'google_drive' ? googleEmail : oneDriveEmail;
+    setSyncMessage(`Carpeta de Google Drive actualizada a «${cleanFolder}».`);
+    const emailToSave = activeTab === 'google_drive' ? googleUser?.email : oneDriveEmail;
     setStoragePreference(selectedMode, selectedProvider, emailToSave, cleanFolder);
   };
 
-  // Direct mobile cloud upload (invokes native Android / iOS "Guardar en Drive" / OneDrive)
   const handleSaveToCloudFromPhone = async (providerName: 'Google Drive' | 'OneDrive') => {
     setIsProcessing(true);
     setSyncMessage(null);
@@ -207,10 +308,6 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleRestoreFromCloud = () => {
-    fileInputRef.current?.click();
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,7 +336,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
         className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[88dvh] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Compact, clean Header */}
+        {/* Compact Header */}
         <div className="px-4 pt-3.5 pb-2.5 sm:px-5 sm:pt-4 sm:pb-3 bg-gradient-to-r from-teal-500/10 via-slate-50 to-cyan-500/10 dark:from-teal-950/40 dark:via-slate-900 dark:to-cyan-950/30 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -248,10 +345,10 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
               </div>
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-tight">
-                  Almacenamiento y Nube Personal
+                  Almacenamiento y Google Drive
                 </h2>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {isInitialPrompt ? '¿Dónde deseas guardar tus entrenamientos?' : 'Tus datos en tu teléfono o en tu propia nube'}
+                  {isInitialPrompt ? '¿Dónde deseas guardar tus entrenamientos?' : 'Integración con API de Google Drive y lectura/escritura'}
                 </p>
               </div>
             </div>
@@ -267,7 +364,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
             )}
           </div>
 
-          {/* Segmented Mode Selector: 3 Options, perfectly fit, zero scroll */}
+          {/* Segmented Mode Selector */}
           <div className="grid grid-cols-3 p-1 mt-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl gap-1 border border-slate-200/80 dark:border-slate-700/60">
             <button
               type="button"
@@ -310,9 +407,9 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Body - Scrollable, well-spaced, never overflows viewport */}
+        {/* Modal Body */}
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3.5 text-xs text-slate-600 dark:text-slate-300 overscroll-contain">
-          {/* TAB 1: LOCAL STORAGE */}
+          {/* TAB 1: LOCAL */}
           {activeTab === 'local' && (
             <div className="space-y-3 animate-in fade-in duration-150">
               <div className="p-3.5 rounded-2xl bg-teal-50/70 dark:bg-cyan-950/30 border border-teal-200 dark:border-teal-800/60">
@@ -322,7 +419,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-teal-600 dark:text-cyan-400 ml-auto" />
                 </div>
                 <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
-                  Tus datos se guardan únicamente en la memoria de este teléfono o navegador. Funciona 100% sin conexión a internet, con total privacidad y sin necesidad de vincular cuentas externas.
+                  Tus datos se guardan únicamente en la memoria de este dispositivo o navegador. Funciona 100% sin conexión a internet y con total privacidad.
                 </p>
               </div>
 
@@ -349,103 +446,111 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: GOOGLE DRIVE */}
+          {/* TAB 2: GOOGLE DRIVE (API INTEGRATION) */}
           {activeTab === 'google_drive' && (
             <div className="space-y-3.5 animate-in fade-in duration-150">
-              {/* Informative Header */}
+              {/* Header card */}
               <div className="p-3 rounded-2xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/60 flex items-start gap-2.5">
                 <Folder className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
                   <p className="font-bold text-slate-900 dark:text-white text-xs">
-                    Tu propia nube personal de Google Drive
+                    Integración oficial con API de Google Drive
                   </p>
                   <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
-                    Cada usuario autoriza y guarda sus datos en su propia cuenta de Google personal desde su celular. No requiere configuraciones de consola ni permisos de servidor.
+                    Lectura y escritura directa de archivos JSON en tu carpeta dedicada <strong>«{folderName}»</strong> dentro de tu Google Drive personal.
                   </p>
                 </div>
               </div>
 
-              {/* 1. Account Linking Box */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+              {/* Authentication Status */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    1. Tu cuenta de Google en este celular
+                    Cuenta de Google
                   </span>
-                  {googleEmail && !isEditingGoogleEmail && (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingGoogleEmail(true)}
-                      className="text-[11px] text-teal-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>Cambiar</span>
-                    </button>
+                  {googleUser && (
+                    <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      <span>Autenticado</span>
+                    </span>
                   )}
                 </div>
 
-                {googleEmail && !isEditingGoogleEmail ? (
+                {googleUser ? (
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-teal-200 dark:border-teal-800">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                        {googleEmail.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="truncate">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                            Cuenta vinculada
-                          </p>
-                          <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                            ✓ Activa
-                          </span>
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      {googleUser.photoURL ? (
+                        <img
+                          src={googleUser.photoURL}
+                          alt="Avatar"
+                          className="w-8 h-8 rounded-full border border-teal-400"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                          {googleUser.email?.charAt(0).toUpperCase()}
                         </div>
+                      )}
+                      <div className="truncate">
+                        <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                          {googleUser.displayName || 'Google Drive Conectado'}
+                        </p>
                         <p className="text-[11px] text-teal-700 dark:text-cyan-400 truncate font-mono">
-                          {googleEmail}
+                          {googleUser.email}
                         </p>
                       </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={handleUnlinkGoogle}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-500 transition-colors ml-2"
-                      title="Desvincular cuenta"
+                      onClick={handleGoogleLogout}
+                      disabled={isProcessing}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 transition-colors ml-2"
+                      title="Cerrar sesión de Google"
                     >
                       <LogOut className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <form onSubmit={handleLinkGoogleAccount} className="space-y-2">
+                  <div className="space-y-2">
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Indica la cuenta de Google con la que inicias sesión en este teléfono:
+                      Inicia sesión para conceder acceso a tu carpeta personal de Google Drive:
                     </p>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1 min-w-0">
-                        <Mail className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                        <input
-                          type="email"
-                          value={googleInput}
-                          onChange={(e) => setGoogleInput(e.target.value)}
-                          placeholder="usuario@gmail.com"
-                          className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    {/* Official Sign in with Google button */}
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogin}
+                      disabled={isProcessing}
+                      className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-950 text-slate-800 dark:text-white font-bold text-xs border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2.5 shadow-sm active:scale-[0.99] transition-all"
+                    >
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                         />
-                      </div>
-                      <button
-                        type="submit"
-                        className="py-1.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1 transition-colors shrink-0"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Vincular</span>
-                      </button>
-                    </div>
-                  </form>
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>{isProcessing ? 'Conectando...' : 'Iniciar sesión con Google'}</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {/* 2. Folder Configuration Box */}
+              {/* Dedicated Folder Section */}
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    2. Carpeta en tu Google Drive
+                    Carpeta Dedicada en Google Drive
                   </span>
                   <button
                     type="button"
@@ -466,7 +571,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
                       type="text"
                       value={folderInput}
                       onChange={(e) => setFolderInput(e.target.value)}
-                      placeholder="Nombre de carpeta (ej: LogGym)"
+                      placeholder="LogGym"
                       className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                     <button
@@ -481,61 +586,91 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
                     <div className="flex items-center gap-2">
                       <FolderCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>
-                        Carpeta por defecto: <strong className="font-mono text-teal-700 dark:text-cyan-400">Google Drive / {folderName}</strong>
+                        Ruta: <strong className="font-mono text-teal-700 dark:text-cyan-400">Google Drive / {folderName}</strong>
                       </span>
                     </div>
-                    <span className="text-[10px] text-emerald-600 font-semibold">Automática</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold">Dedicada</span>
                   </div>
                 )}
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                  Se crea y organiza automáticamente en la raíz de tu Google Drive personal.
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Archivo JSON principal: <code className="font-mono font-bold text-slate-700 dark:text-slate-300">LogGym_Entrenamientos.json</code>
                 </p>
               </div>
 
-              {/* 3. Direct Mobile Cloud Actions */}
-              <div className="p-3.5 rounded-2xl bg-teal-50/60 dark:bg-cyan-950/30 border border-teal-200 dark:border-cyan-800 space-y-2.5">
+              {/* Read / Write API Operations */}
+              <div className="p-3.5 rounded-2xl bg-teal-50/60 dark:bg-cyan-950/30 border border-teal-200 dark:border-cyan-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800 dark:text-cyan-300">
-                    3. Guardar desde tu celular
+                    Operaciones con la API de Drive
                   </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
                     {safeSets.length} series • {safeCardio.length} cardio
                   </span>
                 </div>
 
-                {/* Primary Mobile Button: opens Android's native "Guardar en Drive" dialog */}
-                <button
-                  type="button"
-                  onClick={() => handleSaveToCloudFromPhone('Google Drive')}
-                  disabled={isProcessing}
-                  className="w-full py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-teal-500/20 transition-all disabled:opacity-50"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>{isProcessing ? 'Preparando...' : '📲 Guardar en mi Google Drive (desde este celular)'}</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Write JSON to Drive Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!googleUser) {
+                        handleGoogleLogin();
+                        return;
+                      }
+                      setConfirmDialog({
+                        isOpen: true,
+                        title: '¿Guardar en Google Drive?',
+                        description: `Se escribirá el archivo JSON con tus ${safeSets.length} series de fuerza y ${safeCardio.length} entrenamientos de cardio en la carpeta «${folderName}» de tu Google Drive personal.`,
+                        actionType: 'write',
+                      });
+                    }}
+                    disabled={isProcessing}
+                    className="py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Escribir en Drive</span>
+                  </button>
 
-                {/* Restore button */}
-                <button
-                  type="button"
-                  onClick={handleRestoreFromCloud}
-                  className="w-full py-2.5 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                  <span>📥 Restaurar respaldo desde Google Drive</span>
-                </button>
-
-                {/* How it works simple guide */}
-                <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-teal-100 dark:border-teal-900/60 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
-                  <p className="font-bold text-teal-800 dark:text-cyan-300 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5" />
-                    <span>¿Cómo funciona en tu teléfono?</span>
-                  </p>
-                  <ol className="list-decimal pl-4 space-y-0.5 text-slate-500 dark:text-slate-400">
-                    <li>Pulsas el botón verde «Guardar en mi Google Drive».</li>
-                    <li>Tu celular abrirá el menú nativo y tocas <strong>Guardar en Drive</strong>.</li>
-                    <li>Eliges tu cuenta de Google y la carpeta <strong>«{folderName}»</strong>. ¡Listo!</li>
-                  </ol>
+                  {/* Read JSON from Drive Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!googleUser) {
+                        handleGoogleLogin();
+                        return;
+                      }
+                      setConfirmDialog({
+                        isOpen: true,
+                        title: '¿Restaurar desde Google Drive?',
+                        description: `Se leerá el archivo JSON desde la carpeta «${folderName}» de tu Google Drive personal para actualizar tus entrenamientos actuales en la app.`,
+                        actionType: 'read',
+                      });
+                    }}
+                    disabled={isProcessing}
+                    className="py-2.5 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                    <span>Leer de Drive</span>
+                  </button>
                 </div>
+
+                {/* Files in folder summary */}
+                {driveFiles.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-teal-100 dark:border-teal-900/60 space-y-1 text-[11px]">
+                    <span className="font-bold text-teal-800 dark:text-cyan-300 block">
+                      Archivos detectados en «{folderName}»:
+                    </span>
+                    {driveFiles.map((f) => (
+                      <div key={f.id} className="flex items-center justify-between font-mono text-[10px] text-slate-600 dark:text-slate-400">
+                        <span className="truncate flex items-center gap-1">
+                          <FileText className="w-3 h-3 text-sky-500" />
+                          {f.name}
+                        </span>
+                        <span>{new Date(f.modifiedTime).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center pt-0.5">
                   <a
@@ -658,7 +793,7 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={handleRestoreFromCloud}
+                  onClick={() => fileInputRef.current?.click()}
                   className="w-full py-2.5 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5 text-blue-600" />
@@ -692,7 +827,44 @@ export const StoragePreferenceModal: React.FC<StoragePreferenceModalProps> = ({
           )}
         </div>
 
-        {/* Compact Sticky Footer - Always visible, never cut off on mobile */}
+        {/* Confirmation Modal for Google Drive Mutating Operations (Skill Requirement) */}
+        {confirmDialog && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+            <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3">
+              <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <span>{confirmDialog.title}</span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {confirmDialog.description}
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDialog(null)}
+                  className="py-2 px-3.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirmDialog.actionType === 'write') {
+                      executeWriteToDrive();
+                    } else {
+                      executeReadFromDrive();
+                    }
+                  }}
+                  className="py-2 px-4 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition-colors shadow-sm"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact Sticky Footer */}
         <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0 z-10">
           {!isInitialPrompt && (
             <button

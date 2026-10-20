@@ -28,8 +28,15 @@ import {
   StorageMode,
   CloudProvider,
   AppDataSnapshot,
+  createAppDataSnapshot,
 } from './utils/storageManager';
-import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun, Activity, Cloud, HardDrive } from 'lucide-react';
+import {
+  uploadConsolidatedDataToDrive,
+  getCachedToken,
+  getCachedFolder,
+  onDriveAuthChange,
+} from './services/googleDriveService';
+import { Volume2, VolumeX, Timer, RotateCcw, Sparkles, FileSpreadsheet, Smartphone, Moon, Sun, Activity, Cloud, HardDrive, RefreshCw, Check } from 'lucide-react';
 
 const STORAGE_KEY_SETS = 'fuerzalog_sets_v1';
 const STORAGE_KEY_EXERCISES = 'fuerzalog_exercises_v1';
@@ -186,6 +193,20 @@ export default function App() {
   const [isStorageInitialPrompt, setIsStorageInitialPrompt] = useState(false);
   const [storageConfirmBannerDismissed, setStorageConfirmBannerDismissed] = useState(false);
 
+  // Google Drive Live Auto-Sync State
+  const [driveSyncStatus, setDriveSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [activeDriveToken, setActiveDriveToken] = useState<string | null>(getCachedToken());
+  const [activeDriveFolder, setActiveDriveFolder] = useState<{ id: string; name: string } | null>(getCachedFolder());
+
+  // Listen for Google Drive token & folder changes
+  useEffect(() => {
+    const unsub = onDriveAuthChange((_user, token, folder) => {
+      setActiveDriveToken(token);
+      setActiveDriveFolder(folder);
+    });
+    return () => unsub();
+  }, []);
+
   // Changelog / What's New Modal State
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
   const [hasNewChangelog, setHasNewChangelog] = useState(() => shouldShowChangelog());
@@ -251,6 +272,36 @@ export default function App() {
       // ignore
     }
   }, [todayExerciseIds, todayDate]);
+
+  // Automated consolidated JSON upload to Google Drive upon changes
+  useEffect(() => {
+    // Only auto-sync if user has Google Drive cloud mode selected and an active session
+    if (!activeDriveToken || !activeDriveFolder?.id) return;
+    if (storagePref?.mode !== 'cloud' || storagePref?.provider !== 'google_drive') return;
+
+    setDriveSyncStatus('syncing');
+    const timer = setTimeout(async () => {
+      try {
+        const snapshot = createAppDataSnapshot(sets, exercises, schedule, cardioWorkouts);
+        const res = await uploadConsolidatedDataToDrive(
+          activeDriveToken,
+          activeDriveFolder.id,
+          snapshot,
+          'LogGym_Datos.json'
+        );
+        if (res.success) {
+          setDriveSyncStatus('synced');
+          setTimeout(() => setDriveSyncStatus('idle'), 4000);
+        }
+      } catch (err) {
+        console.warn('Auto-sync to Google Drive error:', err);
+        setDriveSyncStatus('error');
+        setTimeout(() => setDriveSyncStatus('idle'), 4000);
+      }
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, [sets, exercises, schedule, cardioWorkouts, activeDriveToken, activeDriveFolder, storagePref]);
 
   const handleUpdateSchedule = (newSchedule: WeeklySchedule) => {
     setSchedule(newSchedule);
@@ -465,15 +516,33 @@ export default function App() {
                   ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border-sky-200/80 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/40'
                   : 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-cyan-300 border-teal-200/80 dark:border-teal-800/60 hover:bg-teal-100 dark:hover:bg-teal-900/40'
               }`}
-              title={`Almacenamiento: ${storagePref?.mode === 'cloud' ? 'Mi Nube Personal' : 'Memoria del Teléfono'}. Toca para cambiar.`}
+              title={`Almacenamiento: ${
+                driveSyncStatus === 'syncing'
+                  ? 'Subiendo datos consolidados a Google Drive...'
+                  : driveSyncStatus === 'synced'
+                  ? 'Datos consolidados actualizados en Google Drive / LogGym'
+                  : storagePref?.mode === 'cloud'
+                  ? 'Google Drive (LogGym)'
+                  : 'Memoria del Teléfono'
+              }. Toca para abrir gestor.`}
             >
-              {storagePref?.mode === 'cloud' ? (
+              {driveSyncStatus === 'syncing' ? (
+                <RefreshCw className="w-3.5 h-3.5 text-sky-500 animate-spin" />
+              ) : driveSyncStatus === 'synced' ? (
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+              ) : storagePref?.mode === 'cloud' ? (
                 <Cloud className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               ) : (
                 <HardDrive className="w-3.5 h-3.5 text-teal-600 dark:text-cyan-400" />
               )}
               <span className="text-[10px] font-bold hidden sm:inline">
-                {storagePref?.mode === 'cloud' ? 'Nube' : 'Local'}
+                {driveSyncStatus === 'syncing'
+                  ? 'Guardando...'
+                  : driveSyncStatus === 'synced'
+                  ? 'LogGym OK'
+                  : storagePref?.mode === 'cloud'
+                  ? 'Drive'
+                  : 'Local'}
               </span>
             </button>
 
