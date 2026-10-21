@@ -15,15 +15,41 @@ export interface GoogleDriveFileMeta {
   size?: string;
 }
 
+export interface GoogleDriveFolder {
+  id: string;
+  name: string;
+}
+
 // Client ID configured or default
 const GOOGLE_CLIENT_ID =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID) ||
   '274829857053-bjc3drjvkg30ae63j0qdgf5j695q25bn.apps.googleusercontent.com';
 
-// In-memory token cache (never stored in localStorage)
+// In-memory token & session cache (never stored in localStorage)
 let cachedAccessToken: string | null = null;
 let cachedUser: GoogleDriveUser | null = null;
-const authListeners: Array<(user: GoogleDriveUser | null, token: string | null) => void> = [];
+let cachedFolder: GoogleDriveFolder | null = null;
+
+type SimpleAuthListener = (user: GoogleDriveUser | null, token: string | null) => void;
+type DriveAuthChangeListener = (
+  user: GoogleDriveUser | null,
+  token: string | null,
+  folder: GoogleDriveFolder | null
+) => void;
+
+const simpleAuthListeners: SimpleAuthListener[] = [];
+const driveAuthListeners: DriveAuthChangeListener[] = [];
+
+/**
+ * Access token getter for sync checks
+ */
+export const getCachedToken = (): string | null => cachedAccessToken;
+export const getAccessToken = async (): Promise<string | null> => cachedAccessToken;
+
+/**
+ * Folder getter for sync checks
+ */
+export const getCachedFolder = (): GoogleDriveFolder | null => cachedFolder;
 
 /**
  * Helper to ensure Google Identity Services client is loaded
@@ -59,13 +85,13 @@ async function ensureGsiClient(): Promise<any> {
 }
 
 /**
- * Register auth listener
+ * Register auth listener (simple user + token)
  */
 export const initAuth = (
   onAuthSuccess?: (user: GoogleDriveUser, token: string) => void,
   onAuthFailure?: () => void
 ) => {
-  const listener = (user: GoogleDriveUser | null, token: string | null) => {
+  const listener: SimpleAuthListener = (user, token) => {
     if (user && token) {
       if (onAuthSuccess) onAuthSuccess(user, token);
     } else {
@@ -73,9 +99,8 @@ export const initAuth = (
     }
   };
 
-  authListeners.push(listener);
+  simpleAuthListeners.push(listener);
 
-  // Initial call with current memory state
   if (cachedUser && cachedAccessToken) {
     listener(cachedUser, cachedAccessToken);
   } else {
@@ -83,17 +108,46 @@ export const initAuth = (
   }
 
   return () => {
-    const idx = authListeners.indexOf(listener);
-    if (idx !== -1) authListeners.splice(idx, 1);
+    const idx = simpleAuthListeners.indexOf(listener);
+    if (idx !== -1) simpleAuthListeners.splice(idx, 1);
   };
 };
 
-function notifyAuthListeners(user: GoogleDriveUser | null, token: string | null) {
-  authListeners.forEach((fn) => {
+/**
+ * Register Drive auth listener (user + token + folder) - used by App.tsx
+ */
+export const onDriveAuthChange = (
+  callback: (user: GoogleDriveUser | null, token: string | null, folder: GoogleDriveFolder | null) => void
+): (() => void) => {
+  driveAuthListeners.push(callback);
+
+  // Immediately notify with current cache
+  callback(cachedUser, cachedAccessToken, cachedFolder);
+
+  return () => {
+    const idx = driveAuthListeners.indexOf(callback);
+    if (idx !== -1) driveAuthListeners.splice(idx, 1);
+  };
+};
+
+function notifyAllListeners(
+  user: GoogleDriveUser | null,
+  token: string | null,
+  folder: GoogleDriveFolder | null
+) {
+  simpleAuthListeners.forEach((fn) => {
     try {
       fn(user, token);
     } catch (e) {
-      console.warn('Auth listener error:', e);
+      console.warn('Simple auth listener error:', e);
+    }
+  });
+
+  driveAuthListeners.forEach((fn) => {
+    try {
+      fn(user, token, folder);
+    } catch (e) {
+      console.warn('Drive auth listener error:', e);
     }
   });
 }
@@ -133,7 +187,16 @@ export const googleSignIn = async (): Promise<{ user: GoogleDriveUser; accessTok
               photoURL: uData.picture || undefined,
             };
             cachedUser = user;
-            notifyAuthListeners(user, token);
+
+            // Automatically resolve or create the default 'LogGym' folder
+            try {
+              const folder = await getOrCreateLogGymFolder(token, 'LogGym');
+              cachedFolder = folder;
+            } catch (folderErr) {
+              console.warn('Could not auto-create LogGym folder at login:', folderErr);
+            }
+
+            notifyAllListeners(user, token, cachedFolder);
             resolve({ user, accessToken: token });
           } catch {
             const fallbackUser: GoogleDriveUser = {
@@ -141,7 +204,7 @@ export const googleSignIn = async (): Promise<{ user: GoogleDriveUser; accessTok
               displayName: 'Usuario Google Drive',
             };
             cachedUser = fallbackUser;
-            notifyAuthListeners(fallbackUser, token);
+            notifyAllListeners(fallbackUser, token, cachedFolder);
             resolve({ user: fallbackUser, accessToken: token });
           }
         },
@@ -154,10 +217,6 @@ export const googleSignIn = async (): Promise<{ user: GoogleDriveUser; accessTok
   });
 };
 
-export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
-};
-
 export const logout = async () => {
   if (cachedAccessToken && typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
     try {
@@ -168,7 +227,8 @@ export const logout = async () => {
   }
   cachedAccessToken = null;
   cachedUser = null;
-  notifyAuthListeners(null, null);
+  cachedFolder = null;
+  notifyAllListeners(null, null, null);
 };
 
 /**
@@ -177,7 +237,7 @@ export const logout = async () => {
 export async function getOrCreateLogGymFolder(
   accessToken: string,
   folderName: string = 'LogGym'
-): Promise<{ id: string; name: string }> {
+): Promise<GoogleDriveFolder> {
   const safeName = folderName.trim() || 'LogGym';
 
   // 1. Search for existing folder
@@ -199,10 +259,12 @@ export async function getOrCreateLogGymFolder(
 
   const searchData = await searchRes.json();
   if (searchData.files && searchData.files.length > 0) {
-    return {
+    const existing = {
       id: searchData.files[0].id,
       name: searchData.files[0].name,
     };
+    cachedFolder = existing;
+    return existing;
   }
 
   // 2. Folder does not exist, create it
@@ -225,26 +287,26 @@ export async function getOrCreateLogGymFolder(
   }
 
   const createdFolder = await createRes.json();
-  return {
+  const resFolder = {
     id: createdFolder.id,
     name: safeName,
   };
+  cachedFolder = resFolder;
+  return resFolder;
 }
 
 /**
- * Save/write workout JSON file into the dedicated 'LogGym' folder in Google Drive
+ * Upload consolidated data to a specific folder in Google Drive (used by App.tsx automated sync)
  */
-export async function writeWorkoutJsonToDrive(
+export async function uploadConsolidatedDataToDrive(
   accessToken: string,
-  data: AppDataSnapshot,
-  folderName: string = 'LogGym'
+  folderId: string,
+  snapshot: AppDataSnapshot,
+  fileName: string = 'LogGym_Datos.json'
 ): Promise<{ success: boolean; fileId: string; fileName: string; timestamp: number }> {
-  const folder = await getOrCreateLogGymFolder(accessToken, folderName);
-  const fileName = 'LogGym_Entrenamientos.json';
-
-  // Check if file already exists in this folder
+  // Check if file exists in that folder
   const query = encodeURIComponent(
-    `name = '${fileName}' and '${folder.id}' in parents and trashed = false`
+    `name = '${fileName}' and '${folderId}' in parents and trashed = false`
   );
   const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`;
 
@@ -252,17 +314,12 @@ export async function writeWorkoutJsonToDrive(
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!checkRes.ok) {
-    const err = await checkRes.json().catch(() => ({}));
-    throw new Error(err.error?.message || 'Error consultando archivos en Google Drive');
-  }
-
-  const checkData = await checkRes.json();
+  const checkData = checkRes.ok ? await checkRes.json() : { files: [] };
   const existingFile = checkData.files?.[0];
-  const jsonContent = JSON.stringify(data, null, 2);
+  const jsonContent = JSON.stringify(snapshot, null, 2);
 
   if (existingFile?.id) {
-    // Overwrite / Update existing file
+    // Update existing file
     const updateUrl = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`;
     const updateRes = await fetch(updateUrl, {
       method: 'PATCH',
@@ -274,8 +331,7 @@ export async function writeWorkoutJsonToDrive(
     });
 
     if (!updateRes.ok) {
-      const err = await updateRes.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'Error actualizando archivo JSON en Google Drive');
+      throw new Error('Error al actualizar archivo en Google Drive');
     }
 
     return {
@@ -286,15 +342,15 @@ export async function writeWorkoutJsonToDrive(
     };
   }
 
-  // Create new file with multipart upload
+  // Create new file
   const metadata = {
     name: fileName,
-    parents: [folder.id],
+    parents: [folderId],
     mimeType: 'application/json',
-    description: 'Respaldo completo de entrenamientos y series de LogGym',
+    description: 'Respaldo consolidado de LogGym',
   };
 
-  const boundary = '-------LogGymDrive' + Math.random().toString(36).substring(2);
+  const boundary = '-------LogGymConsolidated' + Math.random().toString(36).substring(2);
   const delimiter = `\r\n--${boundary}\r\n`;
   const closeDelimiter = `\r\n--${boundary}--`;
 
@@ -320,8 +376,7 @@ export async function writeWorkoutJsonToDrive(
   );
 
   if (!createRes.ok) {
-    const err = await createRes.json().catch(() => ({}));
-    throw new Error(err.error?.message || 'Error guardando archivo JSON en Google Drive');
+    throw new Error('Error al crear archivo consolidado en Google Drive');
   }
 
   const newFile = await createRes.json();
@@ -334,6 +389,18 @@ export async function writeWorkoutJsonToDrive(
 }
 
 /**
+ * Save/write workout JSON file into the dedicated 'LogGym' folder in Google Drive (used by modal)
+ */
+export async function writeWorkoutJsonToDrive(
+  accessToken: string,
+  data: AppDataSnapshot,
+  folderName: string = 'LogGym'
+): Promise<{ success: boolean; fileId: string; fileName: string; timestamp: number }> {
+  const folder = await getOrCreateLogGymFolder(accessToken, folderName);
+  return uploadConsolidatedDataToDrive(accessToken, folder.id, data, 'LogGym_Entrenamientos.json');
+}
+
+/**
  * Read and download workout JSON file from the dedicated 'LogGym' folder in Google Drive
  */
 export async function readWorkoutJsonFromDrive(
@@ -341,12 +408,12 @@ export async function readWorkoutJsonFromDrive(
   folderName: string = 'LogGym'
 ): Promise<AppDataSnapshot> {
   const folder = await getOrCreateLogGymFolder(accessToken, folderName);
-  const fileName = 'LogGym_Entrenamientos.json';
 
+  // Search for either LogGym_Entrenamientos.json or LogGym_Datos.json
   const query = encodeURIComponent(
-    `name = '${fileName}' and '${folder.id}' in parents and trashed = false`
+    `'${folder.id}' in parents and (name = 'LogGym_Entrenamientos.json' or name = 'LogGym_Datos.json') and trashed = false`
   );
-  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime)`;
+  const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`;
 
   const checkRes = await fetch(searchUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -362,7 +429,7 @@ export async function readWorkoutJsonFromDrive(
 
   if (!file?.id) {
     throw new Error(
-      `No se encontró el archivo "${fileName}" en la carpeta «${folderName}» de tu Google Drive. Guarda primero un respaldo antes de restaurar.`
+      `No se encontró ningún archivo de datos en la carpeta «${folderName}» de tu Google Drive. Guarda primero un respaldo antes de restaurar.`
     );
   }
 
